@@ -1,0 +1,5 @@
+*.gdoc
+*.gsheet
+.Rproj.user/
+*desktop.ini
+plots/grid_frames/
