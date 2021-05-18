@@ -718,7 +718,7 @@ function renderWorld(){
 		.append("circle")
 		.attr("cx", function(d){ return project([d.xlon, d.ylat])[0]})
 		.attr("cy", function(d){ return project([d.xlon, d.ylat])[1]})
-		.attr("r", "3px")
+		.attr("r", "3ipx")
 		.attr('fill', d => {
 		 const coordinate = [d.xlon, d.ylat];
 		 gdistance = d3.geoDistance(coordinate, project.invert([width/2, height/2]));
