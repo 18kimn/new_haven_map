@@ -1,15 +1,18 @@
 /* eslint-disable no-invalid-this */
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
+import './index.css'
 
 const width = window.innerWidth
 const height = window.innerHeight
 
 mapboxgl.accessToken = process.env.MAPBOX_ACCESS_TOKEN
+
+let nextButton
+
 const map = new mapboxgl.Map({
   container: 'map',
   style: 'mapbox://styles/nathanckim18/ckmvgk5g10i8017mv4fmwme8j',
-  center: [-72.959704, 41.31099],
   minZoom: 11.5,
   maxZoom: 16.5,
   zoom: 12,
@@ -18,35 +21,9 @@ const map = new mapboxgl.Map({
     [-72.74838, 41.39701],
   ],
 }).on('load', function() {
-  map.addSource('propBlackSource', {
-    type: 'vector',
-    url: 'mapbox://nathanckim18.bhz1sdze',
-  }).addLayer({
-    'id': 'propBlackLayer',
-    'source': 'propBlackSource',
-    'source-layer': 'prop_black-a1g0zm',
-    'type': 'fill',
-    'paint': {
-      'fill-color': [
-        'step',
-        ['get', 'prop_black'],
-        '#440154',
-        0.1, '#482878',
-        0.2, '#3E4A89',
-        0.3, '#31688E',
-        0.4, '#26828E',
-        0.5, '#1F9E89',
-        0.6, '#35B779',
-        0.7, '#6DCD59',
-        0.8, '#B4DE2C',
-        0.9, '#FDE725',
-      ],
-      'fill-opacity': 0, // start at zero to smoothly transition in
-    },
-  }, 'settlement-subdivision-label',
-  ).addSource('gridVideoSource', {
+  map.addSource('gridVideoSource', {
     'type': 'video',
-    'urls': ['plots/grid.mp4'],
+    'urls': ['static/grid.mp4'],
     'coordinates': [
       [-73.130985, 41.392116],
       [-72.706979, 41.393416],
@@ -60,65 +37,10 @@ const map = new mapboxgl.Map({
     'paint': {
       'raster-opacity': 0,
     },
-  }, 'settlement-subdivision-label').addSource('propertyBlockSource', {
-    'type': 'vector',
-    'url': 'mapbox://nathanckim18.3hcemsqh',
-  }).addLayer({
-    'id': 'propertyBlockLayer',
-    'source': 'propertyBlockSource',
-    'source-layer': 'property_values_block-d5xi9f',
-    'type': 'fill',
-    'maxzoom': 13,
-    'minzoom': 0,
-    'paint': {
-      'fill-color': [
-        'step',
-        ['get', 'total_value'],
-        '#160f39',
-        50000, '#481179',
-        75000, '#7b2281',
-        150000, '#b1357b',
-        250000, '#e34f65',
-        500000, '#fb8460',
-        800000, '#fec286',
-        1000000, '#fcfdbf',
-      ],
-    },
-  }, 'settlement-subdivision-label',
-  ).addSource('holcSource', {
-    'type': 'geojson',
-    'data': '../data/holc.geojson',
-  }).addLayer({
-    'id': 'holcLayer',
-    'source': 'holcSource',
-    'type': 'fill',
-    'filter': ['<=', 'x', ''],
-    'paint': {
-      'fill-color': ['match',
-        ['string', ['get', 'holc_grade']],
-        'A', '#608457',
-        'B', '#699DAD',
-        'C', '#BBB865',
-        'D', '#C27C8D',
-        '#AAAAAA',
-      ],
-    },
-  }, 'settlement-subdivision-label',
-  ).addSource('townSource', {
-    'type': 'geojson',
-    'data': '../data/ct_town.geojson',
-  }).addLayer({
-    'id': 'townLayer',
-    'source': 'townSource',
-    'type': 'line',
-    'paint': {
-      'line-opacity': 0,
-    },
-  }).setLayerZoomRange('og-geometries', 13, 24)
-
-  // moving logo
-  attr = d3.selectAll('.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo').nodes()
-  attrDiv = d3.selectAll('#attribution').node()
+  }, 'settlement-subdivision-label')
+  // moving mapbox attribution to the bottom left
+  const attr = d3.selectAll('.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo').nodes()
+  const attrDiv = d3.selectAll('#attribution').node()
   attrDiv.appendChild(attr[0])
   attrDiv.appendChild(attr[1]) // there must be a better way to do this?
   d3.selectAll('.mapboxgl-ctrl.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo')
@@ -178,13 +100,12 @@ function projectionTween(projection0, projection1) { // taken from https://bl.oc
 }
 */
 
-container = map.getCanvasContainer(),
-svg = d3.select('body')
+const svg = d3.select('body')
     .append('svg')
     .attr('width', width)
     .attr('height', height)
     .style('pointer-events', 'none')
-bgd = svg.append('rect')
+const bgd = svg.append('rect')
     .attr('class', 'bgd')
     .attr('width', '100%')
     .attr('height', '100%')
@@ -222,9 +143,9 @@ const zoomed = (event) => {
 // extra stuff: zoom and panning
 // also predefining some variables that will be updated after the asynchronous
 // data load so they can be referred to outside of that function scope
-let name; let indLands; let indLabs; let snake
+let name; let indLands; let indLabs;
 let files; let div; let canvas; let ctx; let t; let dashOffset; let dta
-let lastTime = d3.now(); const globalElapsed = 0; let activePoint
+let lastTime = d3.now(); let activePoint
 const mouseOver = () => {
   d3.select(this)
       .transition()
@@ -262,9 +183,9 @@ const mouseLeave = function(d) {
 
 
 // loading of files
-const filenames = ['../data/native_land.geojson',
-  '../data/holc.geojson', '../data/nhv_neighborhoods.geojson',
-  '../data/intro_nhv.json', '../data/world_map.geojson']
+const filenames = ['static/data/native_land.geojson',
+  'static/data/holc.geojson', 'static/data/nhv_neighborhoods.geojson',
+  'static/data/world_map.geojson']
 
 const promises = []
 promises.push(d3.csv('../data/text.csv'))
@@ -278,144 +199,6 @@ Promise.all(promises).then(function(datasets) {
   files = datasets
   renderIntro()
 })
-let oldTDiscrete = Array(4).fill(-1)
-const tDiscreteArray = Array(4).fill(0)
-const snakes = Array(4).fill(Array(2).fill(0))
-snakeColors = ['#a503fc', '#038cfc', '#fc7303', '#fc0374']
-function renderIntro() {
-  // render the map but make it invisible to start (see base.css)
-  // "over" the map render the d3 trace of new haven shapes and animate them, importantly in the mapbox projection
-  // then upon clicking the next button make them flicker and un-trace (i.e. disappear)
-  // show mapbox map via transition reveal -- not sure what the best way to do this but for now (4/12) going to just to a opacity transition
-
-  // step 1: set up aesthetics
-  div = d3.select('#map')
-  canvas = div.select('canvas#container'),
-  ctx = canvas.node().getContext('2d')
-  pathCanvas = path.context(ctx)
-  canvas
-      .attr('width', width * window.devicePixelRatio)
-      .attr('height', height * window.devicePixelRatio)
-      .style('width', width + 'px')
-      .style('height', height + 'px')
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-
-  storyText = d3.selectAll('.map-overlay#story')
-      .append('text')
-      .text('Map 0: Intro animation. Explanatory text will eventually go here.')
-
-  // step 2: data cleaning
-  dta = files[4]
-  dta.forEach(function(part, index, lst) {
-    lst[index] = {type: 'Feature', geometry: part.geometry,
-      properties: {neighbors: part.neighbors, dist: part.dist}}
-  }) // since R can't do this :/
-  dta = {type: 'FeatureCollection',
-    name: 'nhv_sample',
-    crs: {type: 'name', properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
-    features: dta}
-
-
-  // step 3: animation
-  timer = d3.timer((elapsed) => {
-    // I want the fade-in animation to take 6 seconds and the starting gap to be 200 units ->
-    t = elapsed / 6000 // t = 1 at 6 seconds. The length of a single "cycle" of animation
-    tDiscreteArray.forEach((_, i, arr) =>{ // version of t from 1 to 64 on a slightly offset cycle
-      arr[i] = Math.floor(64 * (1.1*t*(i+1) - Math.floor(1.1*t*(i+1))))
-    })
-
-    // is the new set of timekeepers the same as the old set of timekeepers?
-    timeUnchanged = oldTDiscrete.every((d, i) => {
-      return d == tDiscreteArray[i]
-    })
-    // if it has been more than one unit of time since this was last run
-    if (!timeUnchanged || oldTDiscrete[0] == -1) {
-      snakes.forEach(updateSnake)
-    }
-
-    if (t < 1) { // fade-in: draw the dash array and increase opacity
-      dashOffset = 0
-      drawIntro(0, [25*t, (25 - 15*t)], t, 1.5*t - Math.floor(1.5*t))
-    } else { // just move the shapes after that, keep opacity and dash array as they were at the end of the fade-in
-      dashOffset = -(t-1)*50 // making a separate variable so it can be "remembered" on the fadeout function
-      drawIntro(dashOffset, [25, 10], 1, 1.5*t - Math.floor(1.5*t))
-    }
-
-    oldTDiscrete = Object.assign([], tDiscreteArray) // update the "old t" with a deep copy
-  })
-}
-
-function updateSnake(snakearray, i, arr) {
-  snake = snakearray[0]
-  snakeIDs = snakearray[1]
-  tDiscrete = tDiscreteArray[i]
-  if (tDiscrete == 0 || oldTDiscrete[0] == -1) { // if iDiscrete is 0 or oldTDiscrete is -1, that means a new snake should be started instead of an old snake appended to
-    snakeColors[i] = '#' + Math.floor(Math.random()*16777215).toString(16) // generate a random color. idk where that number came from lmao
-    snakeIDs = [Math.floor(Math.random() * 1494)] // pick a random block and put its ID into this array of IDs of the blocks in the snake so that we can make sure not to add a block that's already in the snake later on
-    snake = [dta.features[snakeIDs]] // the corresponding geometry as a one-element array
-  } else {
-    nbors = snake.slice(-1)[0].properties.neighbors // neighbors array of last census block in the snake: some choices for what to add to the snake next
-    nbors = nbors.filter(function(x) {
-      return snakeIDs.indexOf(x -1) < 0
-    })[0] // get the first item in that neighbors array that doesn't overlap with what's already in the snake
-    snakeIDs.push(nbors - 1) // add the corresponding geometry to the snake
-    snake.push(dta.features[nbors - 1])
-  }
-
-  if (snake.length > 15) { // make sure there's only 15 elements in the snake at a time; just remove the first one to keep it movin'
-    snake.shift()
-    snakeIDs.shift()
-  }
-
-  arr[i] = [snake, snakeIDs]
-}
-
-function drawIntro(dashOffset = 0, lineDash = [0, 0], alpha = 1, t = 0) {
-  ctx.save()
-  ctx.clearRect(0, 0, width, height)
-  ctx.beginPath()
-  ctx.lineWidth = 0.5
-  ctx.globalAlpha = alpha
-  ctx.lineDashOffset = dashOffset
-  ctx.setLineDash(lineDash)
-  pathCanvas(dta)
-  ctx.stroke()
-  ctx.closePath()
-
-  // the "wave": make a four-layer fill
-  ctx.beginPath()
-  ctx.fillStyle = '#038cfc'
-  Array(8).fill(0).forEach((d, i) => {
-    const subset = dta.features.filter(function(d) { // filter for the properties between given distances away from the new haven green
-      return d.properties.dist < t - (.05 * i) &&
-      d.properties.dist > t - (0.05 * (i+1))
-    })
-    ctx.globalAlpha = .5 - (i * .1)
-    pathCanvas({type: 'FeatureCollection',
-      crs: {type: 'name', properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
-      features: subset})
-    ctx.fill()
-  })
-  ctx.closePath()
-
-  // draw the snakes too
-  // feel a little bit bad about this below chunk because it's so many calls to the canvas
-  // but because alphas, colors, geometries are different there does need to be many calls i think? how cna i batch them?
-  snakes.forEach((snake, snakeI) => {
-    color = snakeColors[snakeI]
-    snake[0].forEach((d, i) => {
-      ctx.beginPath()
-      ctx.fillStyle = color
-      ctx.globalAlpha = .07*i
-      pathCanvas({type: 'FeatureCollection',
-        crs: {type: 'name',
-          properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
-        features: [d]})
-      ctx.fill()
-      ctx.restore()
-    })
-  })
-}
 
 // eslint-disable-next-line no-unused-vars
 function renderNewHaven() {
@@ -764,24 +547,22 @@ function renderWorld() {
         return gdistance > 1.57 ? 'none' : 'red'
       })
 
-  div = d3.select('body').append('div')
+  const div = d3.select('body').append('div')
       .attr('class', 'tooltip')
       .style('opacity', 0)
   divActive = false
 
 
-  points.on('mouseover', function(event, d) {
+  points.on('mouseover', () => {
     d3.select(this).transition().duration(100).attr('r', '12px')
     timer.stop()
     if (typeof(startupTimer) != 'undefined') startupTimer.stop()
     slowdownTimer = d3.timer((elapsed) => {
-      console.log('slowdownTimer begun')
       newSpeed = 0.006 * (1 - d3.easeCubic(elapsed / 500))
       rotationConfig.speed = newSpeed
       autorotate(elapsed)
       if (elapsed > 500) {
         slowdownTimer.stop()
-        console.log('slowdownTimer stopped')
       }
     })
   }).on('mouseout', () => {
@@ -792,7 +573,6 @@ function renderWorld() {
     // just pause everything and quit
     if (divActive) return null
     startupTimer = d3.timer((elapsed) => {
-      console.log('startupTimer begun')
       div.transition(100).style('opacity', 0)
       newSpeed = 0.006 * (d3.easeCubic(elapsed / 500))
       rotationConfig.speed = newSpeed
@@ -801,7 +581,6 @@ function renderWorld() {
         startupTimer.stop()
         // start the automatic spin again only if the pop-up is not on the screen
         timer.restart(autorotate)
-        console.log('startupTimer stopped')
       }
     })
   }).on('click', (d) => {
@@ -842,7 +621,7 @@ function autorotate(elapsed) {
       rotationConfig.horizontalTilt])
     rotateGlobe()
   }
-  t = (elapsed + globalElapsed) / 10000
+  t = elapsed / 10000
   lastTime = now
 }
 
