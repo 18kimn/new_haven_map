@@ -2,7 +2,7 @@ var width = window.innerWidth,
 	height = window.innerHeight;
 
 //mapbox setup
-mapboxgl.accessToken = 'pk.eyJ1IjoibmF0aGFuY2tpbTE4IiwiYSI6ImNraGNxc2t2ZTAwbjcycG53OGN5dmk1b2cifQ.hA4V08R8lW7tpFlosk11Vw';
+mapboxgl.accessToken = 'pk.eyJ1IjoibmF0aGFuY2tpbTE4IiwiYSI6ImNrcXg0cjlueTBwdGYydm56M2puemFybWEifQ.xzGAUbt_oLKoYmoHnz75WA';
 map = new mapboxgl.Map({
 		container: 'map',
 		style: 'mapbox://styles/nathanckim18/ckmvgk5g10i8017mv4fmwme8j',
@@ -16,33 +16,7 @@ map = new mapboxgl.Map({
 		]
 }).on("load", function(){
 
-	map.addSource("propBlackSource", {
-		type: "vector",
-		url: "mapbox://nathanckim18.bhz1sdze"
-	}).addLayer({
-		'id': 'propBlackLayer',
-		'source': 'propBlackSource',
-		'source-layer': 'prop_black-a1g0zm',
-		'type': 'fill',
-		'paint': {
-			'fill-color': [
-				'step',
-				['get', 'prop_black'],
-				'#440154',
-				0.1,	'#482878',
-				0.2,	'#3E4A89',
-				0.3,	'#31688E',
-				0.4,	'#26828E',
-				0.5,	'#1F9E89',
-				0.6,	'#35B779',
-				0.7,	'#6DCD59',
-				0.8,	'#B4DE2C',
-				0.9,  '#FDE725'
-		],
-		'fill-opacity': 0 //start at zero to smoothly transition in
-		},
-	}, "settlement-subdivision-label"
-	).addSource("gridVideoSource", {
+	map.addSource("gridVideoSource", {
 			"type": "video",
 			"urls": ["plots/grid.mp4"],
 			"coordinates": [
@@ -61,71 +35,19 @@ map = new mapboxgl.Map({
 	},  "settlement-subdivision-label").addSource("propertyBlockSource", {
 		"type": "vector",
 		"url": "mapbox://nathanckim18.3hcemsqh"
-	}).addLayer({
-		"id": "propertyBlockLayer",
-		"source": "propertyBlockSource",
-		"source-layer": "property_values_block-d5xi9f",
-		"type": "fill",
-		"maxzoom": 13,
-		"minzoom": 0,
-		"paint": {
-			"fill-color": [
-				"step",
-				["get", "total_value"],
-				'#160f39',
-				50000,	'#481179',
-				75000,	'#7b2281',
-				150000,	'#b1357b',
-				250000,	'#e34f65',
-				500000,	'#fb8460',
-				800000,	'#fec286',
-				1000000,	'#fcfdbf'
-			]
-		}
-	}, "settlement-subdivision-label"
-	).addSource("holcSource", {
-		"type": "geojson",
-		"data": "data/holc.geojson"
-	}).addLayer({
-		"id": "holcLayer",
-		"source": "holcSource",
-		"type": "fill",
-		"filter": ["<=", "x", ""],
-		"paint": {
-			"fill-color": ["match",
-		["string", ["get", "holc_grade"]],
-			"A", "#608457",
-			"B", "#699DAD",
-			"C", "#BBB865",
-			"D", "#C27C8D",
-			'#AAAAAA'
-			]
-		}
-	}, "settlement-subdivision-label"
-).addSource("townSource", {
-	"type": "geojson",
-	"data": "data/ct_town.geojson"
-}).addLayer({
-	"id" : "townLayer",
-	"source" : "townSource",
-	"type": "line",
-	"paint": {
-		"line-opacity": 0
-	}
-}).setLayerZoomRange("og-geometries", 13, 24);
+	}).setLayerZoomRange("og-geometries", 13, 24);
 
 	//moving logo
 	attr = d3.selectAll(".mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo").nodes();
 	attrDiv = d3.selectAll("#attribution").node();
 		attrDiv.appendChild(attr[0]);
 		attrDiv.appendChild(attr[1]); //there must be a better way to do this?
-  d3.selectAll(".mapboxgl-ctrl.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo").transition().duration(1500).style("opacity", 1);
+ 	d3.selectAll(".mapboxgl-ctrl.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo")
+	  	.transition().duration(1500).style("opacity", 1);
 
 	nextButton = d3.selectAll(".map-overlay#nextBox")
 		.html("<button onclick='renderNewHaven()'>Click to move on.</button>");
-
-
-
+	
 })
 
 //things to get started: projection, path generator, canvas stuff
