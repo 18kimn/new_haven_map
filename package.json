@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "prebuild": "del-cli dist -f",
-    "build": "webpack --progress --mode=development",
-    "server": "webpack serve --open",
+    "build": "webpack --progress --mode development",
+    "server": "webpack serve --open --mode development",
     "start": "npm run build --silent && npm run server --silent"
   },
   "repository": {
