@@ -11,6 +11,7 @@ export default {
   devServer: {
     contentBase: __dirname + '/dist',
     hot: true,
+    host: '0.0.0.0',
   },
   devtool: 'source-map',
   output: {

@@ -25,4 +25,3 @@ theme_map <- function(base_family = "Lato", base_size = 11, ...) {
 
 theme_set(theme_map())
 update_geom_defaults("text", list(family = "Lato", fontface = "bold"))
-

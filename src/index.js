@@ -26,7 +26,7 @@ const map = new mapboxgl.Map({
     [-72.74838, 41.39701],
   ],
 })
-console.log(map)
+
 map.on('load', () => {
   console.log(map)
   map.addSource('gridVideoSource', {
