@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "d3": "^7.0.0",
-    "mapbox-gl": "^2.3.1"
+    "mapbox-gl": "^2.3.1",
+    "topojson": "^3.0.2"
   }
 }

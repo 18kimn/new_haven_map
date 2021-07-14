@@ -1,0 +1,378 @@
+---
+title: "Data cleaning for Counter Haven"
+author: "Nathan"
+date: "July 13th, 2021"
+output: html_document
+---
+
+<style type="text/css">
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;1,400&display=swap');
+body {
+  font-family: 'Lato', sans-serif;
+  }
+</style>
+
+
+This notebook contains code necessary to clean the data used in the Counter Haven project. Data are read in from `input_data/raw` or downloaded straight from the web, and then either written to `input_data/clean` (if they will be uploaded to Mapbox Studio) or to `src/static/data` (if we want them to be loaded by the client-side at runtime).  
+
+# Setup 
+
+Packages and fonts to be loaded: 
+
+```{r setup, message = F}
+pacman::p_load("tidyverse", "tidycensus","tigris",
+               "cwi","sf","sysfonts","extrafont","showtext",
+               "rmapshaper", "here", "jsonlite", "rcartocolor",
+               "furrr", "furrr")
+#SETUP: Fonts
+if(!("Lato" %in% font_families())){
+  font_add_google("Lato", family = "Lato")
+}
+showtext_auto() 
+showtext_opts(dpi  =300)
+theme_map <- function(base_family = "Lato", base_size = 11, ...) {
+  theme_void(base_family = base_family, base_size = base_size, ...) +
+    theme(plot.title.position = "plot",
+          plot.caption.position = "panel",
+          strip.text = element_text(face = "bold"),
+          legend.title = element_text(size = rel(1)),
+          legend.text = element_text(size = rel(0.75)),
+          legend.key.width = unit(1.1, "lines"),
+          legend.key.height = unit(0.8, "lines"),
+          text = element_text(size = base_size), 
+          plot.title = element_text(face = "bold", family = "Lato", size = rel(2)),
+          plot.subtitle = element_text(face = "plain", size = rel(1.5)), 
+          plot.caption = element_text(face = "plain")) 
+  
+}
+
+theme_set(theme_map())
+update_geom_defaults("text", list(family = "Lato", fontface = "bold"))
+
+knitr::opts_chunk$set(
+  message = FALSE
+)
+```
+
+This first chunk initializes the repository to use `renv`, an R reproducibility tool that records the package versions used in this project. It only needs to run once, hence the `eval=FALSE` option in the chunk header so that it is not run on knits. 
+
+```{r renv_setup, eval=FALSE}
+renv::init(project = here())
+renv::snapshot() 
+```
+
+# Map 1: Intro animation 
+
+The first map is an intro animation that is more creative than content-ful. I draw on a shapefile of New Haven blocks in an HTML canvas, coloring blocks starting at the center of New Haven (the Green) and emanating out in a sort of "wave" pattern. 
+
+For this, we need to mark blocks with their distance from the Green in percentiles. 
+
+```{r intro_wave}
+nhv <- new_haven_sf %>% st_transform(2234) %>% st_union()
+nhv_green <- st_transform(st_set_crs(st_sfc(st_point(c( -72.926276, 41.307808))), 4326), 2234)
+intro_nhv <- tigris::blocks(state = "CT", county = "New Haven") %>% 
+  st_transform(2234) %>% 
+  mutate(centroids = st_centroid(geometry), 
+    intersects = as.vector(st_contains(nhv, centroids, sparse = F))) %>% 
+  filter(intersects) %>% 
+  mutate(dist = ntile(st_distance(centroids, nhv_green), 100) * .01) 
+```
+
+Part of the animation also includes randomly selecting blocks, then coloring their neighbors as units of time pass. This creates a sort of "snake" effect. This requires giving blocks a "neighbors" column, which is a list of up to their eleven closest neighbors. 
+
+```{r intro_snake}
+dist_lst <- st_distance(intro_nhv) %>% 
+  split(1:1494) %>% #split matrix to a list
+  map(~order(.)[2:12]) # get indexes of 11 closest points
+
+intro_nhv %>% 
+  select(dist) %>% 
+  mutate(neighbors = dist_lst) %>% 
+  st_transform(4326)  %>% 
+  ms_simplify() %>% 
+  write_json(here("input_data", "clean", "intro_nhv.json"))
+```
+
+
+This in turn requires using the generic JSON format instead of GeoJSON, because `write_sf` and other GeoJSON handlers can't handle list-columns. But that's okay, we can clean the data up in a tiny JavaScript chunk as shown here.
+
+```{node}
+const fs = require('fs')
+
+fs.readFile('../../input_data/clean/intro_nhv.json', (err, data) => {
+  if (err) throw err
+  const obj = JSON.parse(data)
+  obj.forEach(function(part, index, lst) {
+    lst[index] = {type: 'Feature', geometry: part.geometry,
+      properties: {neighbors: part.neighbors, dist: part.dist}}
+  })
+
+  const toWrite = JSON.stringify({type: 'FeatureCollection',
+    name: 'nhv_sample',
+    crs: {type: 'name', properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
+    features: obj})
+
+
+  fs.writeFile('../../src/static/data/intro_nhv.json', toWrite, (err) => {
+    if (err) throw err
+  })
+})
+
+``` 
+
+# Map 2: New Haven property values
+
+The second map in this project is of New Haven properties, colored by their value and with tooltips annotating other useful information. Parcel data came from scraping the New Haven [Property Data GIS Portal](https://gis.vgsi.com/newhavenct/), with shapes from a collaborator at Local 34. 
+
+```{r property_values_parcels}
+property_info <- here("input_data", "raw", "property_info.csv") %>% 
+  read_csv()
+nhv <- here("input_data", "raw", "nhv_parcels", "NH_Parcels_09232019.shp") %>% 
+  read_sf()
+
+nhv <- nhv %>% 
+  filter(!duplicated(AV_PID)) %>% 
+  select(AV_PID) %>% 
+  left_join(property_info, by = c("AV_PID" = "pid")) %>% 
+  mutate(owner = str_to_title(owner) %>% 
+           str_replace_all("Of", "of"),
+         owner = case_when(str_detect(owner, "City Of New Haven") ~ "City Of New Haven",
+                           str_detect(owner, "Yale") ~ "Yale University",
+                           T ~ owner),
+         address = str_to_title(address),
+         total_value = improvement_value + land_value,
+         total_value_form = total_value, 
+         zone = ifelse(!is.na(zone_description) & !is.na(zoneclean), 
+                       paste0("<br>Zone: ", zone_description , " (", zoneclean, ")"), 
+         "<br>Zoning information not available."),
+         year_built = ifelse(!is.na(year_built), 
+                             paste0("</strong><br>Built in ", year_built), 
+                             "</strong><br>Year built not available."),
+        gross_area = ifelse(!is.na(gross_area), 
+                            paste0("</p><p>Building area: ", gross_area, " sq ft"),
+                            "</p><p>Gross area not available."),
+         across(c(total_value_form, improvement_value, land_value), ~paste0("$", str_trim(format(.,big.mark = ",", scientific = F)))),
+         label = paste0("<h3><strong>", address, "</strong></h3><p> Owned by <strong>" ,
+                        owner, year_built, 
+                        zone, 
+                        "<br>Land value: ", land_value, 
+                        "<br>Total value: ", total_value_form, 
+                        gross_area,
+                        "<br>Property area: ", landsize, "acres</p>"
+                        ),
+         label = ifelse(is.na(address), "Property information not available.", label)) %>% 
+  st_set_crs(3857) %>% 
+  st_transform(4326) %>% 
+  select(label, total_value) 
+
+write_sf(nhv, 
+         here("input_data", "clean", "property_values.geojson"),
+         delete_dsn = TRUE)
+```
+
+I also produce an aggregated version of this data at the block level. Mapbox limits the amount of data shown at once, meaning that if the user zooms out a bit to see all of New Haven, Mapbox will not render parcel-level data. To address this, we can aggregate to the block level and configure this in Mapbox Studio to show up at zoom levels where the parcel-level data is not shown. 
+
+```{r property_values_block}
+nhv_outline <- st_union(cwi::new_haven_sf)
+nhv_blocks <- tigris::blocks(state = "CT", county = "New Haven") %>% 
+  st_transform(4326) %>% 
+  mutate(centroids = st_centroid(geometry),
+    intersects = as.vector(st_contains(nhv_outline, centroids, sparse = F))) %>% 
+  filter(intersects) %>% select(GEOID10)
+
+nhv_block <- nhv %>% 
+  mutate(geometry = st_centroid(geometry)) %>% 
+  st_join(nhv_blocks, join = st_within) %>% 
+  st_drop_geometry() %>% 
+  group_by(GEOID10) %>% 
+  summarize(total_value = mean(total_value, na.rm=T)) %>% 
+  mutate(print_value = paste0("$", str_trim(format(total_value,big.mark = ",", scientific = F)))) %>% 
+  left_join(nhv_blocks, by = "GEOID10")
+
+write_sf(nhv_block, 
+         here("input_data", "clean", "property_values_block.geojson"), 
+         delete_dsn = TRUE)
+```
+
+# Map 3: Historical and contemporary segregation
+
+The third map in this series covers historical and contemporary segregation, highlighted through redlining shapes from the New Deal-era Homeowner's Loan Corporation and current demographic data from the American Community Survey (ACS).  
+
+This requires minor cleaning of HOLC data provided by the [Mapping Inequality Project](https://dsl.richmond.edu/panorama/redlining/#loc=12/41.3030/-72.9225&opacity=0.8&city=new-haven-ct&adview=full).
+
+```{r}
+holc <- here("input_data", "raw", "holc", "cartodb-query.shp") %>% 
+  read_sf() %>% 
+  select(holc_id, holc_grade) %>% 
+  mutate(x = st_coordinates(st_centroid(geometry))[,"X"])
+write_sf(holc, here("input_data", "clean", "holc.geojson"))
+#NB that the holc dataset is already in EPSG:4326
+```
+
+It also requires cleaning of the ACS demographic data, specifically on the proportion Black for each block in New Haven, and a spatial join with HOLC data so that New Haven blocks can be matched with HOLC zones. NB that many blocks would fall in multiple HOLC zones. This code takes the centroid of each block before performing the spatial join, as a sort-of-messy solution to this that maps each block to a single HOLC zone. 
+
+```{r}
+nhv <- new_haven_sf %>% st_transform(2234) %>% st_union()
+dta <- get_decennial("block", variables = c("P008001", "P008004"),
+              state = "CT", county = "New Haven", geometry = T, 
+              output = "wide")  %>% 
+  st_transform(2234) %>% 
+  mutate(prop_black = P008004/P008001,
+         centroids = st_centroid(geometry),
+         intersects = as.vector(st_contains(nhv, centroids, sparse = F))) %>% 
+  filter(intersects, !is.na(prop_black)) %>% 
+  #spatial join to find what HOLC district this block is in. weird syntax :/
+  mutate(holc = st_within(centroids, st_transform(holc, st_crs(.))) %>% 
+           map(~holc$holc_id[.[1]]) %>% 
+  #necessary to turn blocks with no HOLC id to NA and thus get a vector of the right length
+           unlist()) %>% 
+  select(prop_black, holc) %>% 
+  st_as_sf() %>% 
+  st_set_crs(2234) %>% 
+  st_transform(4326) %>% 
+  ms_simplify() 
+write_sf(dta, 
+         here("input_data", "clean", "prop_black.geojson"), 
+         delete_dsn = TRUE)
+```
+
+# Map 4: A grid map
+
+I'm still not sure why I include this map! But the fourth map in the series is a grid "map" of New Haven parcels arranged by size. This first chunk reads and calculates translation distances for each parcel. 
+
+
+```{r grid_clean}
+nhv <- here("input_data", "raw", "nhv_parcels", "NH_Parcels_09232019.shp") %>% 
+  read_sf()
+nhv <- nhv %>% 
+  mutate(area = st_area(geometry), 
+         owner = str_to_title(Owner_Name), 
+         bbox = map(geometry, st_bbox),
+         width = unlist(map(bbox, function(x) diff(x[c(1,3)]))),
+         height = unlist(map(bbox, function(x) diff(x[c(2,4)]))))
+
+#Assign into rows via adding up widths -- there should be 20 rows, so approximately 69000 width in each row
+
+#X-positions
+nhv <- nhv %>% 
+  arrange(desc(width)) 
+nhv <- nhv[-c(1,5),] #For some reason the first row is the entire city, so we can just drop that one 
+
+nhv <- nhv %>% 
+  mutate(cumu_width = cumsum(width),
+         row = ceiling(cumu_width/17500)) %>% 
+  group_by(row) %>% 
+  mutate(within_grp_id = 1:n(),
+         x_pos = cumsum(width)-(width/2)) 
+#If it's the first one in the row, the x-position is 1
+#If it isn't, it's cumulative sum of the x-positions before it
+
+y_pos <- nhv %>% 
+  st_drop_geometry() %>% 
+  group_by(row) %>% 
+  summarize(heights = max(height)) %>% 
+  mutate(y_pos = ifelse(row == 1,0,heights),
+         y_pos = -8110829-cumsum(y_pos)) %>% 
+  select(-heights)
+
+nhv <- nhv %>% 
+  left_join(y_pos, by = "row")
+  
+# y-positions are constant throughout rows
+# If it's the first row, the y-position is 1
+# If it's not, it's the y-position of the row before it, minus .6 of the height of the tallest building in that row 
+```
+
+This chunk uses those translation distances to actually move the geometries. It also applies an offset so that the center of the map in both sets of geometries remains the same. 
+```{r grid_translate}
+#Okay, now it's time to translate the geometries 
+# 1. Create centroids of current placements
+# 2. Find difference of current centroids to where the points need to go. The difference is an sf point 
+# 3. Subtract the original polygon from this, use map() to do it iteratively. 
+nhv <- nhv %>% ungroup() %>% 
+  mutate(og_geometry = geometry,
+         centroids = st_centroid(geometry),
+         diff = pmap(list(centroids, x_pos,y_pos), 
+                     function(centroid, x,y) centroid- c(x,y)),
+         diff = st_as_sfc(diff), 
+         geometry = st_zm(geometry, drop = T),
+         geometry = map2(geometry, diff, 
+                         function(geo, current_diff) geo-current_diff),
+         geometry = st_as_sfc(geometry))
+
+
+#when we're translating inside the animation, we want the overall center of the image to more or less remain where it is -- 
+# we don't want things to suddenly fly towards a point off of the grid for some reason when the transition begins
+geo_diff <- (st_centroid(st_geometrycollection(nhv$og_geometry)) - 
+               st_centroid(st_geometrycollection(nhv$geometry)))
+nhv <- nhv %>% 
+  mutate(geometry = geometry + as.numeric(geo_diff),
+         diff = diff + as.numeric(geo_diff)) #move new geometries towards old geometries 
+```
+
+Once the geometries are adequately translated, I mutated the owners variable to highlight some of the top owners in New Haven by land size. 
+
+```{r clean_ownership}
+nhv <- nhv %>% 
+  mutate(owner = case_when(str_detect(owner, "City Of New Haven") ~ "City Of New Haven",
+                           str_detect(owner, "Yale") ~ "Yale University",
+                           T ~ owner),
+         owner = str_replace(owner, "Of","of"))
+
+top_owners <- nhv %>% st_drop_geometry() %>% 
+  drop_na(owner) %>% 
+  group_by(owner) %>% 
+  summarize(area = sum(area)) %>% 
+  top_n(6, area) %>% 
+  pull(owner)
+
+nhv <- nhv %>% 
+  mutate(owner = case_when(owner %in% top_owners ~ owner, 
+                           T ~ "Other"),
+         owner = as_factor(owner),
+         owner = fct_relevel(owner, "Other", after = Inf)) %>% 
+  filter(!duplicated(AV_PID)) %>% 
+  st_set_crs(3857) 
+
+#The double conversion seems tedious but I don't know of a way to do it effectively (e.g. via mutate(across(c(og_geometry, geometry), ~st_transform(...)))) 
+#It needs to be exported in lon/lat but the grid needs to be created using the ft/m projected coords, so some conversion is definitely necessary
+
+```
+
+Finally, the translated coordinates are turned into a 32-fps video and a frame highlighting the owners. These are saved in `src/static`. This chunk also takes an unbelievably long time to run, so I'm using `eval=FALSE` on the chunk header. 
+
+```{r make_video, eval = FALSE}
+
+nhv <- nhv %>% 
+  mutate(diff = st_centroid(geometry) - st_centroid(og_geometry),
+         og_geometry = st_zm(og_geometry)) %>% 
+  select(geometry, og_geometry, diff)
+
+dir.create(here("input_data", "frames"))
+plan(multiprocess)
+future_map(1:80, function(f){#f for frame
+  t <- ifelse(f < 40, 4 * (f/80)^3,
+              1 - (f/-40+2)^3/2) #cubic-in-out function
+  
+  nhv %>% 
+    mutate(geometry_plot = og_geometry + (diff * t)) %>% #runtime is bad :/ I wonder how it could be improved?
+    as_tibble() %>% 
+    st_as_sf(sf_column_name = "geometry_plot") %>% 
+    ggplot() + 
+    geom_sf(color = "#69b3a2", size = 0.5) + 
+    theme_void()  +
+    scale_x_continuous(limits = c(-8126462, -8108366)) + 
+    scale_y_continuous(limits = c(5045109, 5069101)) + 
+    ggsave(paste0(here("input_data", "frames"), "/", f, ".png"), 
+           width = 9.6, height = 5.4)
+  return(NULL)
+})
+
+paste0(here("input_data", "frames"), "/", c(1:80 , 80:1), ".png") %>% 
+  map(image_read) %>% 
+  image_join() %>% 
+  image_write_video(here("src", "static", "grid.mp4"), 
+                    framerate = 32)
+
+```
+

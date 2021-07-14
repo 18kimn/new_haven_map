@@ -13,7 +13,7 @@ export default {
     hot: true,
     host: '0.0.0.0',
   },
-  devtool: 'source-map',
+  devtool: 'none',
   output: {
     path: __dirname + '/dist',
     filename: 'bundle.js',
