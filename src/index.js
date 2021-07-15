@@ -21,6 +21,7 @@ const map = new mapboxgl.Map({
   minZoom: 11.5,
   maxZoom: 16.5,
   zoom: 12,
+  center: [-72.959704, 41.31099],
   maxBounds: [
     [-73.21036, 41.22615],
     [-72.74838, 41.39701],

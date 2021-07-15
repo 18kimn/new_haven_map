@@ -17,7 +17,8 @@ const renderIntro = (map) => {
     } else {
       snakeShapes = snake[0]
       snakeIDs = snake[1]
-      let nbors = snakeShapes.slice(-1)[0].properties.neighbors // neighbors array of last census block in the snake: some choices for what to add to the snake next
+      // neighbors array of last census block in the snake: some choices for what to add to the snake next
+      let nbors = snakeShapes.slice(-1)[0].properties.neighbors
       nbors = nbors.filter(function(x) {
         return snakeIDs.indexOf(x -1) < 0
       })[0] // get the first item in that neighbors array that doesn't overlap with what's already in the snake
@@ -36,27 +37,31 @@ const renderIntro = (map) => {
   // this function 1) draws the blocks, 2) makes a blue "wave" spreading out from the center of New Haven, and
   // 3) renders "snakes" as updated by the updateSnake function above.
   const drawFrame = (dashOffset = 0, lineDash = [0, 0], alpha = 1, t = 0) => {
+    // the main area, aka the blocks
     ctx.save()
     ctx.clearRect(0, 0, width, height)
     ctx.beginPath()
     ctx.lineWidth = 0.5
     ctx.globalAlpha = alpha
     ctx.lineDashOffset = dashOffset
+    ctx.fillStyle = '#F7F7F7'
     ctx.setLineDash(lineDash)
     path(dta)
+    ctx.fill()
     ctx.stroke()
     ctx.closePath()
 
     // the "wave": make an eight-layer fill
     ctx.beginPath()
     ctx.fillStyle = '#038cfc'
-    Array(8).fill(0).forEach((i) => {
+    Array(8).fill(0).forEach((_, i) => {
       // filter for the properties between given distances away from the new haven green
       const subset = dta.features.filter(function(d) {
         return d.properties.dist < t - (.05 * i) &&
       d.properties.dist > t - (0.05 * (i+1))
       })
       ctx.globalAlpha = .5 - (i * .1)
+      console.log(subset)
       path({type: 'FeatureCollection',
         crs: {type: 'name', properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
         features: subset})
@@ -180,8 +185,8 @@ const renderIntro = (map) => {
   // Section 3: Beginning the animation in a d3.timer()
   d3.json('../static/data/intro_nhv.json').then((processed) => {
     dta = processed
+    animate()
   })
-  animate()
 }
 
 export default renderIntro

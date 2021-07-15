@@ -15,6 +15,8 @@ body {
 
 This notebook contains code necessary to clean the data used in the Counter Haven project. Data are read in from `input_data/raw` or downloaded straight from the web, and then either written to `input_data/clean` (if they will be uploaded to Mapbox Studio) or to `src/static/data` (if we want them to be loaded by the client-side at runtime).  
 
+Before runing this notebook, I advise you to run `npm install` in the terminal in the root directory of this project, and also install the packages specified in the `renv.lock` file by opening up the R Project. 
+
 # Setup 
 
 Packages and fonts to be loaded: 
@@ -23,7 +25,7 @@ Packages and fonts to be loaded:
 pacman::p_load("tidyverse", "tidycensus","tigris",
                "cwi","sf","sysfonts","extrafont","showtext",
                "rmapshaper", "here", "jsonlite", "rcartocolor",
-               "furrr", "furrr")
+               "furrr", "maptools")
 #SETUP: Fonts
 if(!("Lato" %in% font_families())){
   font_add_google("Lato", family = "Lato")
@@ -83,23 +85,29 @@ Part of the animation also includes randomly selecting blocks, then coloring the
 ```{r intro_snake}
 dist_lst <- st_distance(intro_nhv) %>% 
   split(1:1494) %>% #split matrix to a list
-  map(~order(.)[2:12]) # get indexes of 11 closest points
+  set_names(NULL) %>% 
+  map(~order(.)[2:12])  # get indexes of 11 closest points
 
 intro_nhv %>% 
+  st_transform(4326) %>% 
+  ms_simplify(keep_shapes = TRUE) %>% 
   select(dist) %>% 
   mutate(neighbors = dist_lst) %>% 
-  st_transform(4326)  %>% 
-  ms_simplify() %>% 
   write_json(here("input_data", "clean", "intro_nhv.json"))
 ```
 
 
-This in turn requires using the generic JSON format instead of GeoJSON, because `write_sf` and other GeoJSON handlers can't handle list-columns. But that's okay, we can clean the data up in a tiny JavaScript chunk as shown here.
+This in turn requires using the generic JSON format instead of GeoJSON, because `write_sf` and other GeoJSON handlers can't handle list-columns. I also had issues with file size and with boundaries being rendered twice. But that's okay, we can clean the data up in a tiny JavaScript chunk as shown here using the TopoJSON library that resolves these issues. It requires a tiny bit of acrobatics to import, as the path for `require` in RMarkdown Node.js chunks use some weird temp path. 
 
-```{node}
+```{node json_format, engine.opts='--require topojson'}
 const fs = require('fs')
+const path = require('path')
+const topojson = require(
+  path.resolve(process.cwd(), 
+               '../node_modules/topojson/dist/topojson.js')
+  )
 
-fs.readFile('../../input_data/clean/intro_nhv.json', (err, data) => {
+fs.readFile('../input_data/clean/intro_nhv.json', (err, data) => {
   if (err) throw err
   const obj = JSON.parse(data)
   obj.forEach(function(part, index, lst) {
@@ -107,13 +115,14 @@ fs.readFile('../../input_data/clean/intro_nhv.json', (err, data) => {
       properties: {neighbors: part.neighbors, dist: part.dist}}
   })
 
-  const toWrite = JSON.stringify({type: 'FeatureCollection',
+  let toWrite = {type: 'FeatureCollection',
     name: 'nhv_sample',
     crs: {type: 'name', properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
-    features: obj})
-
-
-  fs.writeFile('../../src/static/data/intro_nhv.json', toWrite, (err) => {
+    features: obj}
+  
+  toWrite = JSON.stringify(toWrite)
+  console.log(topojson.topology(toWrite))
+  fs.writeFile('../src/static/data/intro_nhv.json', toWrite, (err) => {
     if (err) throw err
   })
 })
@@ -200,7 +209,7 @@ The third map in this series covers historical and contemporary segregation, hig
 
 This requires minor cleaning of HOLC data provided by the [Mapping Inequality Project](https://dsl.richmond.edu/panorama/redlining/#loc=12/41.3030/-72.9225&opacity=0.8&city=new-haven-ct&adview=full).
 
-```{r}
+```{r holc}
 holc <- here("input_data", "raw", "holc", "cartodb-query.shp") %>% 
   read_sf() %>% 
   select(holc_id, holc_grade) %>% 
@@ -211,7 +220,7 @@ write_sf(holc, here("input_data", "clean", "holc.geojson"))
 
 It also requires cleaning of the ACS demographic data, specifically on the proportion Black for each block in New Haven, and a spatial join with HOLC data so that New Haven blocks can be matched with HOLC zones. NB that many blocks would fall in multiple HOLC zones. This code takes the centroid of each block before performing the spatial join, as a sort-of-messy solution to this that maps each block to a single HOLC zone. 
 
-```{r}
+```{r prop_black}
 nhv <- new_haven_sf %>% st_transform(2234) %>% st_union()
 dta <- get_decennial("block", variables = c("P008001", "P008004"),
               state = "CT", county = "New Haven", geometry = T, 
@@ -376,3 +385,68 @@ paste0(here("input_data", "frames"), "/", c(1:80 , 80:1), ".png") %>%
 
 ```
 
+
+# Map 5: Native land 
+
+
+```{r}
+native_land <- fromJSON("https://native-land.ca/api/index.php?maps=territories") %>% 
+  mutate(coords = geometry$coordinates %>% 
+           map(function(x){
+             ncols <- last(dim(x))
+      #We want st_polygon() recognize each row as containing a single polygon
+      #That means we need each row to be a single-item list, where the item is a matrix with coordinates in x-y-z order
+      #Currently each item in the column is an array, so we need to convert it to a matrix depending on how many attributes there are. Some don't have a z-attribute, so we convert it flexibly with the "ncol = " argument
+      #We drop the z attribute with st_zm() so that they can be bound together as a single column
+             
+             matrix(x, ncol = ncols) %>% 
+               list() %>% 
+               st_polygon() %>% 
+               st_zm(drop = T)
+             
+             }) %>% 
+           st_sfc(),#this binds everything together as an sf column
+         name = properties$Name) %>% 
+  select(coords, name) %>% 
+  st_as_sf() %>% 
+  st_set_crs(4326) #couldn't find the exact projection anywhere on the Native Land docs so EPSG:4326 is my guess
+
+
+width <- 246141.3 
+height <- 246172.1 
+xlims <- c(-8218907, -8218907 + width)
+ylims <- c(4971335, 4971335 + height)
+
+ct <- c(xmin = -75.439, ymin =40.89984, xmax = -71.190, ymax = 42.334157)
+d3_pal <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf")
+native_land <- native_land %>% 
+  st_crop(y = ct) %>% 
+  mutate(fill = rep(d3_pal, ceiling(nrow(.)/length(d3_pal)))[1:nrow(.)]) 
+nation_labels <- native_land %>% 
+  mutate(lab_locations = map_dfr(polylabelr::poi(coords), as_tibble), 
+         text_x = lab_locations[["x"]],
+         text_y = lab_locations[["y"]])  %>% 
+  select(-lab_locations)
+
+file.remove("data/native_land.geojson")
+st_write(nation_labels, "data/native_land.geojson")
+
+
+cwi::town_sf %>% 
+  st_write("data/ct_town.geojson")
+```
+data(wrld_simpl)
+
+wrld_simpl %>% st_as_sf() %>% select() %>% 
+  rmapshaper::ms_simplify(keep = 0.2) %>% 
+  st_combine() %>% #st_combine helps not for storage purposes but for the svg; manipulating a single big path is better than manipulating lots of small paths
+  st_write("data/world_map.geojson")
+
+tigris::states() %>% 
+  st_as_sf() %>% select() %>% 
+  rmapshaper::ms_simplify(keep = 0.05) %>% 
+  st_combine() %>% 
+  st_write("data/us_states.geojson")
+
+
+```
