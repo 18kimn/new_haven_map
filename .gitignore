@@ -1,5 +1,13 @@
 *.gdoc
 *.gsheet
 .Rproj.user/
+.RData
+
 *desktop.ini
+
 plots/grid_frames/
+
+
+.env
+node_modules/
+renv/ 
