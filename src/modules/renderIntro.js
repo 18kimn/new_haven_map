@@ -183,8 +183,9 @@ const renderIntro = (map) => {
   let dta; let timer; let dashOffset
 
   // Section 3: Beginning the animation in a d3.timer()
-  d3.json('../static/data/intro_nhv.json').then((processed) => {
+  d3.json('../assets/data/intro_nhv.json').then((processed) => {
     dta = processed
+    console.log(dta)
     animate()
   })
 }

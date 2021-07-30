@@ -29,7 +29,7 @@ To preview the site in a browser, run `npm run start`. A browser window at http:
 
 ### Directory structure
 
-The most important folder for viewers and editors of this project is the `src` folder. This contains the JavaScript files used to run the website (start at `index.js` and then look to the `modules` folder), and also contains R scripts in the `preprocessing` folder that import and clean up data. Lastly, the `static` folder contains non-code assets that this website needs: the website icon, an `.mp4` file for the grid visualization of New Haven properties, and the data actually imported into the website and visualized there. 
+The most important folder for viewers and editors of this project is the `src` folder. This contains the JavaScript files used to run the website (start at `index.js` and then look to the `modules` folder), and also contains R scripts in the `preprocessing` folder that import and clean up data. Lastly, the `assets` folder contains non-code assets that this website needs: the website icon, an `.mp4` file for the grid visualization of New Haven properties, and the data actually imported into the website and visualized there. 
 
 You might also want to look in the `input_data` folder to see data files that are not used directly by the web application but are either raw data files or cleaned data files that have been uploaded to Mapbox Studio to improve runtime performance. 
 

@@ -32,7 +32,7 @@ map.on('load', () => {
   console.log(map)
   map.addSource('gridVideoSource', {
     'type': 'video',
-    'urls': ['static/grid.mp4'],
+    'urls': ['assets/grid.mp4'],
     'coordinates': [
       [-73.130985, 41.392116],
       [-72.706979, 41.393416],

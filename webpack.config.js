@@ -25,7 +25,7 @@ export default {
     new ESLintPlugin(),
     new CopyPlugin({
       patterns: [
-        {from: 'src/static', to: 'static'},
+        {from: 'src/assets', to: 'assets'},
       ]},
     ),
   ],

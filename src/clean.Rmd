@@ -12,8 +12,7 @@ body {
   }
 </style>
 
-
-This notebook contains code necessary to clean the data used in the Counter Haven project. Data are read in from `input_data/raw` or downloaded straight from the web, and then either written to `input_data/clean` (if they will be uploaded to Mapbox Studio) or to `src/static/data` (if we want them to be loaded by the client-side at runtime).  
+This notebook contains code necessary to clean the data used in the Counter Haven project. Data are read in from `input_data/raw` or downloaded straight from the web, and then either written to `input_data/clean` (if they will be uploaded to Mapbox Studio) or to `src/assets/data` (if we want them to be loaded by the client-side at runtime).  
 
 Before runing this notebook, I advise you to run `npm install` in the terminal in the root directory of this project, and also install the packages specified in the `renv.lock` file by opening up the R Project. 
 
@@ -23,9 +22,12 @@ Packages and fonts to be loaded:
 
 ```{r setup, message = F}
 pacman::p_load("tidyverse", "tidycensus","tigris",
-               "cwi","sf","sysfonts","extrafont","showtext",
+               "sf","sysfonts","extrafont","showtext",
                "rmapshaper", "here", "jsonlite", "rcartocolor",
                "furrr", "maptools")
+
+if(!require("cwi")) devtools::install_github("CT-Data-Haven/cwi"); library(cwi)
+
 #SETUP: Fonts
 if(!("Lato" %in% font_families())){
   font_add_google("Lato", family = "Lato")
@@ -60,7 +62,6 @@ This first chunk initializes the repository to use `renv`, an R reproducibility 
 
 ```{r renv_setup, eval=FALSE}
 renv::init(project = here())
-renv::snapshot() 
 ```
 
 # Map 1: Intro animation 
@@ -99,7 +100,7 @@ intro_nhv %>%
 
 This in turn requires using the generic JSON format instead of GeoJSON, because `write_sf` and other GeoJSON handlers can't handle list-columns. I also had issues with file size and with boundaries being rendered twice. But that's okay, we can clean the data up in a tiny JavaScript chunk as shown here using the TopoJSON library that resolves these issues. It requires a tiny bit of acrobatics to import, as the path for `require` in RMarkdown Node.js chunks use some weird temp path. 
 
-```{node json_format, engine.opts='--require topojson'}
+```{node json_format}
 const fs = require('fs')
 const path = require('path')
 const topojson = require(
@@ -120,9 +121,8 @@ fs.readFile('../input_data/clean/intro_nhv.json', (err, data) => {
     crs: {type: 'name', properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
     features: obj}
   
-  toWrite = JSON.stringify(toWrite)
-  console.log(topojson.topology(toWrite))
-  fs.writeFile('../src/static/data/intro_nhv.json', toWrite, (err) => {
+  toWrite = JSON.stringify(topojson.topology({"intro_nhv": toWrite}))
+  fs.writeFile('../src/assets/data/intro_nhv.json', toWrite, (err) => {
     if (err) throw err
   })
 })
@@ -348,7 +348,7 @@ nhv <- nhv %>%
 
 ```
 
-Finally, the translated coordinates are turned into a 32-fps video and a frame highlighting the owners. These are saved in `src/static`. This chunk also takes an unbelievably long time to run, so I'm using `eval=FALSE` on the chunk header. 
+Finally, the translated coordinates are turned into a 32-fps video and a frame highlighting the owners. These are saved in `src/assets`. This chunk also takes an unbelievably long time to run, so I'm using `eval=FALSE` on the chunk header. 
 
 ```{r make_video, eval = FALSE}
 
@@ -380,16 +380,18 @@ future_map(1:80, function(f){#f for frame
 paste0(here("input_data", "frames"), "/", c(1:80 , 80:1), ".png") %>% 
   map(image_read) %>% 
   image_join() %>% 
-  image_write_video(here("src", "static", "grid.mp4"), 
+  image_write_video(here("src", "assets", "grid.mp4"), 
                     framerate = 32)
-
+unlink(here("input_data", "frames"), force = TRUE)
 ```
 
 
 # Map 5: Native land 
 
+The fifth map in this series is a map of Indigenous ancestral and current land ownership around Connecticut. These shapefiles came from [https://native-land.ca](https://native-land.ca) and have minimal revision to them; I mainly did some acrobatics to get it into the right format needed to crop, then cropped them, then exported them to a GeoJSON file I could use in d3.js. 
 
-```{r}
+
+```{r native_land}
 native_land <- fromJSON("https://native-land.ca/api/index.php?maps=territories") %>% 
   mutate(coords = geometry$coordinates %>% 
            map(function(x){
@@ -428,25 +430,41 @@ nation_labels <- native_land %>%
          text_y = lab_locations[["y"]])  %>% 
   select(-lab_locations)
 
-file.remove("data/native_land.geojson")
-st_write(nation_labels, "data/native_land.geojson")
+st_write(nation_labels,
+         here( "src/assets/data/native_land.geojson"),
+         delete_dsn = T, delete_layer = T
+         )
 
 
-cwi::town_sf %>% 
-  st_write("data/ct_town.geojson")
 ```
+
+
+# Map 6: Global capital
+
+The last map plots Yale's financial connections across the world. The main data for this is contained in `src/assets/data/world_map.csv` and was coded by hand (as it was much qualitative data), but to go along with this we also need a shapefile of countries across the world. I also decided to include US states in this process, so that there was a smoother zoomout from the Indigenous lands map to the full world map. The below chunk handles this process. 
+
+```{r world_map}
 data(wrld_simpl)
 
 wrld_simpl %>% st_as_sf() %>% select() %>% 
   rmapshaper::ms_simplify(keep = 0.2) %>% 
   st_combine() %>% #st_combine helps not for storage purposes but for the svg; manipulating a single big path is better than manipulating lots of small paths
-  st_write("data/world_map.geojson")
+  st_write(here("src/assets/data/world_map.geojson"),
+           delete_dsn = T, delete_layer = T)
 
 tigris::states() %>% 
   st_as_sf() %>% select() %>% 
   rmapshaper::ms_simplify(keep = 0.05) %>% 
   st_combine() %>% 
-  st_write("data/us_states.geojson")
-
+  st_write(here("src/assets/data/us_states.geojson"),
+           delete_dsn = T, delete_layer = T)
 
 ```
+
+
+We can take a `snapshot` after all of that to make sure all the packages we've used in the data cleaning process are saved in the `renv.lock` file!
+
+```{r snapshot}
+renv::snapshot() 
+```
+
