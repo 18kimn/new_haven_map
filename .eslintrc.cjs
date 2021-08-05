@@ -6,6 +6,11 @@ module.exports = {
   'extends': [
     'google',
   ],
+  'settings': {
+    'react': {
+      'version': 'detect',
+    },
+  },
   'parserOptions': {
     'ecmaFeatures': {
       'jsx': true,
@@ -14,14 +19,23 @@ module.exports = {
     'sourceType': 'module',
   },
   'plugins': [
-    'html',
+    'react',
+    'react-hooks',
+    'jsx-a11y',
   ],
   'rules': {
+    'react/prop-types': 'warn',
+    'react-hooks/exhaustive-deps': 'warn',
+    'indent': ['warn', 2, { 'SwitchCase': 1 }],
+    'no-trailing-spaces': ['off'],
     'semi': ['warn', 'never'],
+    'object-curly-spacing': ['off', 'always'],
+    'array-bracket-spacing': ['off', 'always'],
     'quotes': ['warn', 'single', {'avoidEscape': true}],
-    'require-jsdoc': 'off',
-    'linebreak-style': 'off',
-    'max-len': ['error', {'code': 90, 'ignoreComments': true, 'ignoreStrings': true}],
+    'space-before-function-paren': ['off', {
+      'anonymous': 'always', 'named': 'never', 'asyncArrow': 'always',
+    }],
+    'space-infix-ops': ['warn', {'int32Hint': false}],
+    'no-unused-vars': 'warn',
   },
-  'ignorePatterns': ['dist/*', 'node_modules/*'],
 }

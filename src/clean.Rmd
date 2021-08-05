@@ -2,15 +2,8 @@
 title: "Data cleaning for Counter Haven"
 author: "Nathan"
 date: "July 13th, 2021"
-output: html_document
+output: github_document
 ---
-
-<style type="text/css">
-@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;1,400&display=swap');
-body {
-  font-family: 'Lato', sans-serif;
-  }
-</style>
 
 This notebook contains code necessary to clean the data used in the Counter Haven project. Data are read in from `input_data/raw` or downloaded straight from the web, and then either written to `input_data/clean` (if they will be uploaded to Mapbox Studio) or to `src/assets/data` (if we want them to be loaded by the client-side at runtime).  
 
@@ -21,19 +14,19 @@ Before runing this notebook, I advise you to run `npm install` in the terminal i
 Packages and fonts to be loaded: 
 
 ```{r setup, message = F}
-pacman::p_load("tidyverse", "tidycensus","tigris",
-               "sf","sysfonts","extrafont","showtext",
+pacman::p_load("tidyverse", "tidycensus", "tigris",
+               "sf", "sysfonts", "extrafont", "showtext",
                "rmapshaper", "here", "jsonlite", "rcartocolor",
                "furrr", "maptools")
 
-if(!require("cwi")) devtools::install_github("CT-Data-Haven/cwi"); library(cwi)
+if (!require("cwi")) devtools::install_github("CT-Data-Haven/cwi"); library(cwi)
 
 #SETUP: Fonts
-if(!("Lato" %in% font_families())){
+if (!("Lato" %in% font_families())) {
   font_add_google("Lato", family = "Lato")
 }
-showtext_auto() 
-showtext_opts(dpi  =300)
+showtext_auto()
+showtext_opts(dpi = 300)
 theme_map <- function(base_family = "Lato", base_size = 11, ...) {
   theme_void(base_family = base_family, base_size = base_size, ...) +
     theme(plot.title.position = "plot",
@@ -43,11 +36,11 @@ theme_map <- function(base_family = "Lato", base_size = 11, ...) {
           legend.text = element_text(size = rel(0.75)),
           legend.key.width = unit(1.1, "lines"),
           legend.key.height = unit(0.8, "lines"),
-          text = element_text(size = base_size), 
-          plot.title = element_text(face = "bold", family = "Lato", size = rel(2)),
-          plot.subtitle = element_text(face = "plain", size = rel(1.5)), 
-          plot.caption = element_text(face = "plain")) 
-  
+          text = element_text(size = base_size),
+          plot.title = element_text(face = "bold",
+          family = "Lato", size = rel(2)),
+          plot.subtitle = element_text(face = "plain", size = rel(1.5)),
+          plot.caption = element_text(face = "plain"))
 }
 
 theme_set(theme_map())
@@ -72,28 +65,32 @@ For this, we need to mark blocks with their distance from the Green in percentil
 
 ```{r intro_wave}
 nhv <- new_haven_sf %>% st_transform(2234) %>% st_union()
-nhv_green <- st_transform(st_set_crs(st_sfc(st_point(c( -72.926276, 41.307808))), 4326), 2234)
-intro_nhv <- tigris::blocks(state = "CT", county = "New Haven") %>% 
-  st_transform(2234) %>% 
-  mutate(centroids = st_centroid(geometry), 
-    intersects = as.vector(st_contains(nhv, centroids, sparse = F))) %>% 
-  filter(intersects) %>% 
-  mutate(dist = ntile(st_distance(centroids, nhv_green), 100) * .01) 
+nhv_green <- c(-72.926276, 41.307808)  %>%
+  st_point() %>%
+  st_sfc() %>%
+  st_set_crs(4326) %>%
+  st_transform(2234)
+intro_nhv <- tigris::blocks(state = "CT", county = "New Haven") %>%
+  st_transform(2234) %>%
+  mutate(centroids = st_centroid(geometry),
+    intersects = as.vector(st_contains(nhv, centroids, sparse = F))) %>%
+  filter(intersects) %>%
+  mutate(dist = ntile(st_distance(centroids, nhv_green), 100) * .01)
 ```
 
 Part of the animation also includes randomly selecting blocks, then coloring their neighbors as units of time pass. This creates a sort of "snake" effect. This requires giving blocks a "neighbors" column, which is a list of up to their eleven closest neighbors. 
 
 ```{r intro_snake}
-dist_lst <- st_distance(intro_nhv) %>% 
+dist_lst <- st_distance(intro_nhv) %>%
   split(1:1494) %>% #split matrix to a list
-  set_names(NULL) %>% 
+  set_names(NULL) %>%
   map(~order(.)[2:12])  # get indexes of 11 closest points
 
-intro_nhv %>% 
-  st_transform(4326) %>% 
-  ms_simplify(keep_shapes = TRUE) %>% 
-  select(dist) %>% 
-  mutate(neighbors = dist_lst) %>% 
+intro_nhv %>%
+  st_transform(4326) %>%
+  ms_simplify(keep_shapes = TRUE) %>%
+  select(dist) %>%
+  mutate(neighbors = dist_lst) %>%
   write_json(here("input_data", "clean", "intro_nhv.json"))
 ```
 
@@ -134,47 +131,54 @@ fs.readFile('../input_data/clean/intro_nhv.json', (err, data) => {
 The second map in this project is of New Haven properties, colored by their value and with tooltips annotating other useful information. Parcel data came from scraping the New Haven [Property Data GIS Portal](https://gis.vgsi.com/newhavenct/), with shapes from a collaborator at Local 34. 
 
 ```{r property_values_parcels}
-property_info <- here("input_data", "raw", "property_info.csv") %>% 
+property_info <- here("input_data", "raw", "property_info.csv") %>%
   read_csv()
-nhv <- here("input_data", "raw", "nhv_parcels", "NH_Parcels_09232019.shp") %>% 
+nhv <- here("input_data", "raw", "nhv_parcels", "NH_Parcels_09232019.shp") %>%
   read_sf()
 
-nhv <- nhv %>% 
-  filter(!duplicated(AV_PID)) %>% 
-  select(AV_PID) %>% 
-  left_join(property_info, by = c("AV_PID" = "pid")) %>% 
-  mutate(owner = str_to_title(owner) %>% 
+nhv <- nhv %>%
+  filter(!duplicated(AV_PID)) %>%
+  select(AV_PID) %>%
+  left_join(property_info, by = c("AV_PID" = "pid")) %>%
+  mutate(owner = str_to_title(owner) %>%
            str_replace_all("Of", "of"),
-         owner = case_when(str_detect(owner, "City Of New Haven") ~ "City Of New Haven",
+         owner = case_when(str_detect(owner,
+         "City Of New Haven") ~ "City Of New Haven",
                            str_detect(owner, "Yale") ~ "Yale University",
                            T ~ owner),
          address = str_to_title(address),
          total_value = improvement_value + land_value,
-         total_value_form = total_value, 
-         zone = ifelse(!is.na(zone_description) & !is.na(zoneclean), 
-                       paste0("<br>Zone: ", zone_description , " (", zoneclean, ")"), 
+         total_value_form = total_value,
+         zone = ifelse(!is.na(zone_description) & !is.na(zoneclean),
+                       paste0("<br>Zone: ",
+                       zone_description, " (", zoneclean, ")"),
          "<br>Zoning information not available."),
-         year_built = ifelse(!is.na(year_built), 
-                             paste0("</strong><br>Built in ", year_built), 
+         year_built = ifelse(!is.na(year_built),
+                             paste0("</strong><br>Built in ", year_built),
                              "</strong><br>Year built not available."),
-        gross_area = ifelse(!is.na(gross_area), 
-                            paste0("</p><p>Building area: ", gross_area, " sq ft"),
+        gross_area = ifelse(!is.na(gross_area),
+                            paste0("</p><p>Building area: ",
+                             gross_area, " sq ft"),
                             "</p><p>Gross area not available."),
-         across(c(total_value_form, improvement_value, land_value), ~paste0("$", str_trim(format(.,big.mark = ",", scientific = F)))),
-         label = paste0("<h3><strong>", address, "</strong></h3><p> Owned by <strong>" ,
-                        owner, year_built, 
-                        zone, 
-                        "<br>Land value: ", land_value, 
-                        "<br>Total value: ", total_value_form, 
+         across(c(total_value_form, improvement_value, land_value),
+          ~paste0("$", str_trim(format(., big.mark = ",", scientific = F)))),
+         label = paste0("<h3><strong>", address,
+              "</strong></h3><p> Owned by <strong>",
+                        owner, year_built,
+                        zone,
+                        "<br>Land value: ", land_value,
+                        "<br>Total value: ", total_value_form,
                         gross_area,
                         "<br>Property area: ", landsize, "acres</p>"
                         ),
-         label = ifelse(is.na(address), "Property information not available.", label)) %>% 
-  st_set_crs(3857) %>% 
-  st_transform(4326) %>% 
-  select(label, total_value) 
+         label = ifelse(is.na(address),
+         "Property information not available.",
+         label)) %>%
+  st_set_crs(3857) %>%
+  st_transform(4326) %>%
+  select(label, total_value)
 
-write_sf(nhv, 
+write_sf(nhv,
          here("input_data", "clean", "property_values.geojson"),
          delete_dsn = TRUE)
 ```
@@ -183,23 +187,27 @@ I also produce an aggregated version of this data at the block level. Mapbox lim
 
 ```{r property_values_block}
 nhv_outline <- st_union(cwi::new_haven_sf)
-nhv_blocks <- tigris::blocks(state = "CT", county = "New Haven") %>% 
-  st_transform(4326) %>% 
+nhv_blocks <- tigris::blocks(state = "CT", county = "New Haven") %>%
+  st_transform(4326) %>%
   mutate(centroids = st_centroid(geometry),
-    intersects = as.vector(st_contains(nhv_outline, centroids, sparse = F))) %>% 
-  filter(intersects) %>% select(GEOID10)
+    intersects = as.vector(st_contains(nhv_outline,
+     centroids, sparse = F))) %>%
+  filter(intersects) %>%
+  select(GEOID10)
 
-nhv_block <- nhv %>% 
-  mutate(geometry = st_centroid(geometry)) %>% 
-  st_join(nhv_blocks, join = st_within) %>% 
-  st_drop_geometry() %>% 
-  group_by(GEOID10) %>% 
-  summarize(total_value = mean(total_value, na.rm=T)) %>% 
-  mutate(print_value = paste0("$", str_trim(format(total_value,big.mark = ",", scientific = F)))) %>% 
+nhv_block <- nhv %>%
+  mutate(geometry = st_centroid(geometry)) %>%
+  st_join(nhv_blocks, join = st_within) %>%
+  st_drop_geometry() %>%
+  group_by(GEOID10) %>%
+  summarize(total_value = mean(total_value, na.rm = T)) %>%
+  mutate(print_value = paste0("$", str_trim(
+    format(total_value, big.mark = ",", scientific = F)
+    ))) %>%
   left_join(nhv_blocks, by = "GEOID10")
 
-write_sf(nhv_block, 
-         here("input_data", "clean", "property_values_block.geojson"), 
+write_sf(nhv_block,
+         here("input_data", "clean", "property_values_block.geojson"),
          delete_dsn = TRUE)
 ```
 
@@ -210,10 +218,10 @@ The third map in this series covers historical and contemporary segregation, hig
 This requires minor cleaning of HOLC data provided by the [Mapping Inequality Project](https://dsl.richmond.edu/panorama/redlining/#loc=12/41.3030/-72.9225&opacity=0.8&city=new-haven-ct&adview=full).
 
 ```{r holc}
-holc <- here("input_data", "raw", "holc", "cartodb-query.shp") %>% 
-  read_sf() %>% 
-  select(holc_id, holc_grade) %>% 
-  mutate(x = st_coordinates(st_centroid(geometry))[,"X"])
+holc <- here("input_data", "raw", "holc", "cartodb-query.shp") %>%
+  read_sf() %>%
+  select(holc_id, holc_grade) %>%
+  mutate(x = st_coordinates(st_centroid(geometry))[, "X"])
 write_sf(holc, here("input_data", "clean", "holc.geojson"))
 #NB that the holc dataset is already in EPSG:4326
 ```
@@ -223,25 +231,26 @@ It also requires cleaning of the ACS demographic data, specifically on the propo
 ```{r prop_black}
 nhv <- new_haven_sf %>% st_transform(2234) %>% st_union()
 dta <- get_decennial("block", variables = c("P008001", "P008004"),
-              state = "CT", county = "New Haven", geometry = T, 
-              output = "wide")  %>% 
-  st_transform(2234) %>% 
-  mutate(prop_black = P008004/P008001,
+              state = "CT", county = "New Haven", geometry = T,
+              output = "wide")  %>%
+  st_transform(2234) %>%
+  mutate(prop_black = P008004 / P008001,
          centroids = st_centroid(geometry),
-         intersects = as.vector(st_contains(nhv, centroids, sparse = F))) %>% 
-  filter(intersects, !is.na(prop_black)) %>% 
+         intersects = as.vector(st_contains(nhv, centroids, sparse = F))) %>%
+  filter(intersects, !is.na(prop_black)) %>%
   #spatial join to find what HOLC district this block is in. weird syntax :/
-  mutate(holc = st_within(centroids, st_transform(holc, st_crs(.))) %>% 
-           map(~holc$holc_id[.[1]]) %>% 
-  #necessary to turn blocks with no HOLC id to NA and thus get a vector of the right length
-           unlist()) %>% 
-  select(prop_black, holc) %>% 
-  st_as_sf() %>% 
-  st_set_crs(2234) %>% 
-  st_transform(4326) %>% 
-  ms_simplify() 
-write_sf(dta, 
-         here("input_data", "clean", "prop_black.geojson"), 
+  mutate(holc = st_within(centroids, st_transform(holc, st_crs(.))) %>%
+           map(~holc$holc_id[.[1]]) %>%
+  #necessary to turn blocks with no HOLC id to NA
+  #and thus get a vector of the right length
+           unlist()) %>%
+  select(prop_black, holc) %>%
+  st_as_sf() %>%
+  st_set_crs(2234) %>%
+  st_transform(4326) %>%
+  ms_simplify()
+write_sf(dta,
+         here("input_data", "clean", "prop_black.geojson"),
          delete_dsn = TRUE)
 ```
 
@@ -251,100 +260,114 @@ I'm still not sure why I include this map! But the fourth map in the series is a
 
 
 ```{r grid_clean}
-nhv <- here("input_data", "raw", "nhv_parcels", "NH_Parcels_09232019.shp") %>% 
+nhv <- here("input_data", "raw", "nhv_parcels",
+  "NH_Parcels_09232019.shp") %>%
   read_sf()
-nhv <- nhv %>% 
-  mutate(area = st_area(geometry), 
-         owner = str_to_title(Owner_Name), 
+nhv <- nhv %>%
+  mutate(area = st_area(geometry),
+         owner = str_to_title(Owner_Name),
          bbox = map(geometry, st_bbox),
-         width = unlist(map(bbox, function(x) diff(x[c(1,3)]))),
-         height = unlist(map(bbox, function(x) diff(x[c(2,4)]))))
+         width = unlist(map(bbox, function(x) diff(x[c(1, 3)]))),
+         height = unlist(map(bbox, function(x) diff(x[c(2, 4)]))))
 
-#Assign into rows via adding up widths -- there should be 20 rows, so approximately 69000 width in each row
+#Assign into rows via adding up widths -- there should be 20 rows,
+# so approximately 69000 width in each row
 
 #X-positions
-nhv <- nhv %>% 
-  arrange(desc(width)) 
-nhv <- nhv[-c(1,5),] #For some reason the first row is the entire city, so we can just drop that one 
+nhv <- nhv %>%
+  arrange(desc(width))
+nhv <- nhv[-c(1, 5), ]
+#For some reason the first row is the entire city, so we can just drop that one
 
-nhv <- nhv %>% 
+nhv <- nhv %>%
   mutate(cumu_width = cumsum(width),
-         row = ceiling(cumu_width/17500)) %>% 
-  group_by(row) %>% 
+         row = ceiling(cumu_width / 17500)) %>%
+  group_by(row) %>%
   mutate(within_grp_id = 1:n(),
-         x_pos = cumsum(width)-(width/2)) 
+         x_pos = cumsum(width) - (width / 2))
 #If it's the first one in the row, the x-position is 1
 #If it isn't, it's cumulative sum of the x-positions before it
 
-y_pos <- nhv %>% 
-  st_drop_geometry() %>% 
-  group_by(row) %>% 
-  summarize(heights = max(height)) %>% 
-  mutate(y_pos = ifelse(row == 1,0,heights),
-         y_pos = -8110829-cumsum(y_pos)) %>% 
+y_pos <- nhv %>%
+  st_drop_geometry() %>%
+  group_by(row) %>%
+  summarize(heights = max(height)) %>%
+  mutate(y_pos = ifelse(row == 1, 0, heights),
+         y_pos = -8110829 - cumsum(y_pos)) %>%
   select(-heights)
 
-nhv <- nhv %>% 
+nhv <- nhv %>%
   left_join(y_pos, by = "row")
   
 # y-positions are constant throughout rows
 # If it's the first row, the y-position is 1
-# If it's not, it's the y-position of the row before it, minus .6 of the height of the tallest building in that row 
+# If it's not, it's the y-position of the row before it,
+# minus .6 of the height of the tallest building in that row
 ```
 
 This chunk uses those translation distances to actually move the geometries. It also applies an offset so that the center of the map in both sets of geometries remains the same. 
 ```{r grid_translate}
-#Okay, now it's time to translate the geometries 
+#Okay, now it's time to translate the geometries
 # 1. Create centroids of current placements
-# 2. Find difference of current centroids to where the points need to go. The difference is an sf point 
-# 3. Subtract the original polygon from this, use map() to do it iteratively. 
-nhv <- nhv %>% ungroup() %>% 
+# 2. Find difference of current centroids to
+#   where the points need to go. The difference is an sf point
+# 3. Subtract the original polygon from this, use map() to do it iteratively.
+nhv <- nhv %>%
+  ungroup() %>%
   mutate(og_geometry = geometry,
          centroids = st_centroid(geometry),
-         diff = pmap(list(centroids, x_pos,y_pos), 
-                     function(centroid, x,y) centroid- c(x,y)),
-         diff = st_as_sfc(diff), 
+         diff = pmap(list(centroids, x_pos, y_pos),
+                     function(centroid, x, y) centroid - c(x, y)),
+         diff = st_as_sfc(diff),
          geometry = st_zm(geometry, drop = T),
-         geometry = map2(geometry, diff, 
-                         function(geo, current_diff) geo-current_diff),
+         geometry = map2(geometry, diff,
+                         function(geo, current_diff) geo - current_diff),
          geometry = st_as_sfc(geometry))
 
 
-#when we're translating inside the animation, we want the overall center of the image to more or less remain where it is -- 
-# we don't want things to suddenly fly towards a point off of the grid for some reason when the transition begins
-geo_diff <- (st_centroid(st_geometrycollection(nhv$og_geometry)) - 
+#when we're translating inside the animation, we want the overall
+# center of the image to more or less remain where it is --
+# we don't want things to suddenly fly towards a point off of
+# the grid for some reason when the transition begins
+geo_diff <- (st_centroid(st_geometrycollection(nhv$og_geometry)) -
                st_centroid(st_geometrycollection(nhv$geometry)))
-nhv <- nhv %>% 
+nhv <- nhv %>%
   mutate(geometry = geometry + as.numeric(geo_diff),
-         diff = diff + as.numeric(geo_diff)) #move new geometries towards old geometries 
+         diff = diff + as.numeric(geo_diff))
+#move new geometries towards old geometries
 ```
 
 Once the geometries are adequately translated, I mutated the owners variable to highlight some of the top owners in New Haven by land size. 
 
 ```{r clean_ownership}
-nhv <- nhv %>% 
-  mutate(owner = case_when(str_detect(owner, "City Of New Haven") ~ "City Of New Haven",
+nhv <- nhv %>%
+  mutate(owner = case_when(str_detect(owner,
+                                "City Of New Haven") ~ "City Of New Haven",
                            str_detect(owner, "Yale") ~ "Yale University",
                            T ~ owner),
-         owner = str_replace(owner, "Of","of"))
+         owner = str_replace(owner, "Of", "of"))
 
-top_owners <- nhv %>% st_drop_geometry() %>% 
-  drop_na(owner) %>% 
-  group_by(owner) %>% 
-  summarize(area = sum(area)) %>% 
-  top_n(6, area) %>% 
+top_owners <- nhv %>%
+  st_drop_geometry() %>%
+  drop_na(owner) %>%
+  group_by(owner) %>%
+  summarize(area = sum(area)) %>%
+  top_n(6, area) %>%
   pull(owner)
 
-nhv <- nhv %>% 
-  mutate(owner = case_when(owner %in% top_owners ~ owner, 
+nhv <- nhv %>%
+  mutate(owner = case_when(owner %in% top_owners ~ owner,
                            T ~ "Other"),
          owner = as_factor(owner),
-         owner = fct_relevel(owner, "Other", after = Inf)) %>% 
-  filter(!duplicated(AV_PID)) %>% 
-  st_set_crs(3857) 
+         owner = fct_relevel(owner, "Other", after = Inf)) %>%
+  filter(!duplicated(AV_PID)) %>%
+  st_set_crs(3857)
 
-#The double conversion seems tedious but I don't know of a way to do it effectively (e.g. via mutate(across(c(og_geometry, geometry), ~st_transform(...)))) 
-#It needs to be exported in lon/lat but the grid needs to be created using the ft/m projected coords, so some conversion is definitely necessary
+# The double conversion seems tedious
+#   but I don't know of a way to do it effectively
+#   (e.g. via mutate(across(c(og_geometry, geometry), ~st_transform(...))))
+# It needs to be exported in lon/lat but the grid needs to be created
+#   using the ft/m projected coords, so some conversion is definitely necessary
 
 ```
 
@@ -352,35 +375,36 @@ Finally, the translated coordinates are turned into a 32-fps video and a frame h
 
 ```{r make_video, eval = FALSE}
 
-nhv <- nhv %>% 
+nhv <- nhv %>%
   mutate(diff = st_centroid(geometry) - st_centroid(og_geometry),
-         og_geometry = st_zm(og_geometry)) %>% 
+         og_geometry = st_zm(og_geometry)) %>%
   select(geometry, og_geometry, diff)
 
 dir.create(here("input_data", "frames"))
 plan(multiprocess)
-future_map(1:80, function(f){#f for frame
-  t <- ifelse(f < 40, 4 * (f/80)^3,
-              1 - (f/-40+2)^3/2) #cubic-in-out function
-  
-  nhv %>% 
-    mutate(geometry_plot = og_geometry + (diff * t)) %>% #runtime is bad :/ I wonder how it could be improved?
-    as_tibble() %>% 
-    st_as_sf(sf_column_name = "geometry_plot") %>% 
-    ggplot() + 
-    geom_sf(color = "#69b3a2", size = 0.5) + 
+future_map(1:80, function(f) { #f for frame
+  t <- ifelse(f < 40, 4 * (f / 80)^3,
+              1 - (f / -40 + 2)^3 / 2) #cubic-in-out function
+
+  nhv %>%
+    mutate(geometry_plot = og_geometry + (diff * t)) %>%
+    #runtime is bad :/ I wonder how it could be improved?
+    as_tibble() %>%
+    st_as_sf(sf_column_name = "geometry_plot") %>%
+    ggplot() +
+    geom_sf(color = "#69b3a2", size = 0.5) +
     theme_void()  +
-    scale_x_continuous(limits = c(-8126462, -8108366)) + 
-    scale_y_continuous(limits = c(5045109, 5069101)) + 
-    ggsave(paste0(here("input_data", "frames"), "/", f, ".png"), 
+    scale_x_continuous(limits = c(-8126462, -8108366)) +
+    scale_y_continuous(limits = c(5045109, 5069101)) +
+    ggsave(paste0(here("input_data", "frames"), "/", f, ".png"),
            width = 9.6, height = 5.4)
   return(NULL)
 })
 
-paste0(here("input_data", "frames"), "/", c(1:80 , 80:1), ".png") %>% 
-  map(image_read) %>% 
-  image_join() %>% 
-  image_write_video(here("src", "assets", "grid.mp4"), 
+paste0(here("input_data", "frames"), "/", c(1:80, 80:1), ".png") %>%
+  map(image_read) %>%
+  image_join() %>%
+  image_write_video(here("src", "assets", "grid.mp4"),
                     framerate = 32)
 unlink(here("input_data", "frames"), force = TRUE)
 ```
@@ -392,46 +416,54 @@ The fifth map in this series is a map of Indigenous ancestral and current land o
 
 
 ```{r native_land}
-native_land <- fromJSON("https://native-land.ca/api/index.php?maps=territories") %>% 
-  mutate(coords = geometry$coordinates %>% 
-           map(function(x){
+native_land <- fromJSON("https://native-land.ca/api/index.php?maps=territories") %>%  # nolint
+  mutate(coords = geometry$coordinates %>%
+           map(function(x) {
              ncols <- last(dim(x))
-      #We want st_polygon() recognize each row as containing a single polygon
-      #That means we need each row to be a single-item list, where the item is a matrix with coordinates in x-y-z order
-      #Currently each item in the column is an array, so we need to convert it to a matrix depending on how many attributes there are. Some don't have a z-attribute, so we convert it flexibly with the "ncol = " argument
-      #We drop the z attribute with st_zm() so that they can be bound together as a single column
-             
-             matrix(x, ncol = ncols) %>% 
-               list() %>% 
-               st_polygon() %>% 
+#We want st_polygon() recognize each row as containing a single polygon
+#That means we need each row to be a single-item list,
+#    where the item is a matrix with coordinates in x-y-z order
+#Currently each item in the column is an array, so we need to convert it
+#     to a matrix depending on how many attributes there are.
+# Some don't have a z-attribute, so we convert it flexibly
+#   with the "ncol = " argument
+# We drop the z attribute with st_zm() so that they can be
+#   bound together as a single column
+
+             matrix(x, ncol = ncols) %>%
+               list() %>%
+               st_polygon() %>%
                st_zm(drop = T)
-             
-             }) %>% 
-           st_sfc(),#this binds everything together as an sf column
-         name = properties$Name) %>% 
-  select(coords, name) %>% 
-  st_as_sf() %>% 
-  st_set_crs(4326) #couldn't find the exact projection anywhere on the Native Land docs so EPSG:4326 is my guess
+             }) %>%
+           st_sfc(), #this binds everything together as an sf column
+         name = properties$Name) %>%
+  select(coords, name) %>%
+  st_as_sf() %>%
+  st_set_crs(4326)
+#couldn't find the exact projection anywhere on the
+#   Native Land docs so EPSG:4326 is my guess
 
 
-width <- 246141.3 
-height <- 246172.1 
+width <- 246141.3
+height <- 246172.1
 xlims <- c(-8218907, -8218907 + width)
 ylims <- c(4971335, 4971335 + height)
 
-ct <- c(xmin = -75.439, ymin =40.89984, xmax = -71.190, ymax = 42.334157)
-d3_pal <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf")
-native_land <- native_land %>% 
-  st_crop(y = ct) %>% 
-  mutate(fill = rep(d3_pal, ceiling(nrow(.)/length(d3_pal)))[1:nrow(.)]) 
-nation_labels <- native_land %>% 
-  mutate(lab_locations = map_dfr(polylabelr::poi(coords), as_tibble), 
+ct <- c(xmin = -75.439, ymin = 40.89984, xmax = -71.190, ymax = 42.334157)
+d3_pal <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+    "#9467bd", "#8c564b", "#e377c2",
+    "#7f7f7f", "#bcbd22", "#17becf")
+native_land <- native_land %>%
+  st_crop(y = ct) %>%
+  mutate(fill = rep(d3_pal, ceiling(nrow(.) / length(d3_pal)))[seq_len(.)])
+nation_labels <- native_land %>%
+  mutate(lab_locations = map_dfr(polylabelr::poi(coords), as_tibble),
          text_x = lab_locations[["x"]],
-         text_y = lab_locations[["y"]])  %>% 
+         text_y = lab_locations[["y"]])  %>%
   select(-lab_locations)
 
 st_write(nation_labels,
-         here( "src/assets/data/native_land.geojson"),
+         here("src/assets/data/native_land.geojson"),
          delete_dsn = T, delete_layer = T
          )
 
@@ -446,16 +478,21 @@ The last map plots Yale's financial connections across the world. The main data 
 ```{r world_map}
 data(wrld_simpl)
 
-wrld_simpl %>% st_as_sf() %>% select() %>% 
-  rmapshaper::ms_simplify(keep = 0.2) %>% 
-  st_combine() %>% #st_combine helps not for storage purposes but for the svg; manipulating a single big path is better than manipulating lots of small paths
+wrld_simpl %>%
+  st_as_sf() %>%
+  select() %>%
+  rmapshaper::ms_simplify(keep = 0.2) %>%
+  st_combine() %>% #st_combine helps not for storage purposes but for the svg
+  # manipulating a single big path is better than
+  #   manipulating lots of small paths
   st_write(here("src/assets/data/world_map.geojson"),
            delete_dsn = T, delete_layer = T)
 
-tigris::states() %>% 
-  st_as_sf() %>% select() %>% 
-  rmapshaper::ms_simplify(keep = 0.05) %>% 
-  st_combine() %>% 
+tigris::states() %>%
+  st_as_sf() %>%
+  select() %>%
+  rmapshaper::ms_simplify(keep = 0.05) %>%
+  st_combine() %>%
   st_write(here("src/assets/data/us_states.geojson"),
            delete_dsn = T, delete_layer = T)
 
@@ -465,6 +502,6 @@ tigris::states() %>%
 We can take a `snapshot` after all of that to make sure all the packages we've used in the data cleaning process are saved in the `renv.lock` file!
 
 ```{r snapshot}
-renv::snapshot() 
+renv::snapshot()
 ```
 

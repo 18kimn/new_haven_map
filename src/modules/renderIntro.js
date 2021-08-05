@@ -37,6 +37,8 @@ const renderIntro = (map) => {
   // this function 1) draws the blocks, 2) makes a blue "wave" spreading out from the center of New Haven, and
   // 3) renders "snakes" as updated by the updateSnake function above.
   const drawFrame = (dashOffset = 0, lineDash = [0, 0], alpha = 1, t = 0) => {
+    svg.size()
+    return null
     // the main area, aka the blocks
     ctx.save()
     ctx.clearRect(0, 0, width, height)
@@ -180,12 +182,17 @@ const renderIntro = (map) => {
   // a discrete time variable and a placeholder version to compare it against to see if enough time has passed
   let oldTDiscrete = Array(4).fill(-1)
   let tDiscreteArray = Array(4).fill(0)
-  let dta; let timer; let dashOffset
+  let dta; let timer; let dashOffset; let svg;
 
   // Section 3: Beginning the animation in a d3.timer()
   d3.json('../assets/data/intro_nhv.json').then((processed) => {
     dta = processed
     console.log(dta)
+    svg = d3.select('#map').append('svg')
+        .attr('width', width * window.devicePixelRatio)
+        .attr('height', height * window.devicePixelRatio)
+        .style('width', width + 'px')
+        .style('height', height + 'px')
     animate()
   })
 }
