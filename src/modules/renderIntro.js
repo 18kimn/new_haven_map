@@ -1,6 +1,6 @@
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
-
+import * as topojson from 'topojson-client'
 const renderIntro = (map) => {
   // Section 1: Animation functions that will be called in d3.timer() to update the canvas
 
@@ -36,40 +36,29 @@ const renderIntro = (map) => {
   // Given a dash array offset, an array describing the length of a dash and gap, alpha, and time,
   // this function 1) draws the blocks, 2) makes a blue "wave" spreading out from the center of New Haven, and
   // 3) renders "snakes" as updated by the updateSnake function above.
-  const drawFrame = (dashOffset = 0, lineDash = [0, 0], alpha = 1, t = 0) => {
-    svg.size()
-    return null
-    // the main area, aka the blocks
-    ctx.save()
-    ctx.clearRect(0, 0, width, height)
-    ctx.beginPath()
-    ctx.lineWidth = 0.5
-    ctx.globalAlpha = alpha
-    ctx.lineDashOffset = dashOffset
-    ctx.fillStyle = '#F7F7F7'
-    ctx.setLineDash(lineDash)
-    path(dta)
-    ctx.fill()
-    ctx.stroke()
-    ctx.closePath()
+  const drawFrame = (dashOffset = 0, lineDash = [0, 0], t = 0) => {
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+    arcs.style('stroke-dasharray', lineDash[0] + ' ' + lineDash[1])
+        .style('stroke-dashoffset', dashOffset)
 
     // the "wave": make an eight-layer fill
     ctx.beginPath()
     ctx.fillStyle = '#038cfc'
     Array(8).fill(0).forEach((_, i) => {
       // filter for the properties between given distances away from the new haven green
-      const subset = dta.features.filter(function(d) {
-        return d.properties.dist < t - (.05 * i) &&
-      d.properties.dist > t - (0.05 * (i+1))
+      const subset = dta.features.filter((d) => {
+        return d.properties.dist < (t - (.05 * i)) &&
+      d.properties.dist > (t - (0.05 * (i+1)))
       })
       ctx.globalAlpha = .5 - (i * .1)
-      console.log(subset)
       path({type: 'FeatureCollection',
-        crs: {type: 'name', properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
         features: subset})
       ctx.fill()
     })
     ctx.closePath()
+
+    return null
 
     // draw the snakes too
     // feel a little bit bad about this below chunk because it's so many calls to the canvas
@@ -98,21 +87,15 @@ const renderIntro = (map) => {
       tDiscreteArray = Array(4).fill(0).map((_, i) => {
         return Math.floor(64 * (1.1*t*(i+1) - Math.floor(1.1*t*(i+1))))
       })
-
       // is the new set of timekeepers the same as the old set of timekeepers?
       const timeUnchanged = oldTDiscrete.every((d, i) => d === tDiscreteArray[i])
       // if not (if more than one unit of time has passed), or if this is the first run
       if (!timeUnchanged || oldTDiscrete[0] === -1) snakes.forEach(updateSnake)
 
-      if (t < 1) { // fade-in: draw the dash array and increase opacity
-        drawFrame(0, [25*t, (25 - 15*t)], t, 1.5*t - Math.floor(1.5*t))
-      } else { // just move the shapes after that by incrementing the dash offset
-      // keep moving opacity and dash array as they were at the end of the fade-in
-        dashOffset = -(t-1)*50 // only updating it here so that it can be referred to by other functions here
-        drawFrame(dashOffset, [25, 10], 1, 1.5*t - Math.floor(1.5*t))
-      }
+      dashOffset = -(t-1)*50 // only updating it here so that it can be referred to by other functions here
+      drawFrame(dashOffset, [100, 10], 1.5*t - Math.floor(1.5*t))
 
-      oldTDiscrete = Object.assign([], tDiscreteArray) // update the "old t" with a deep copy
+      oldTDiscrete = Object.assign([], tDiscreteArray) // update the "old t" with a shallow copy
     })
   }
 
@@ -168,6 +151,7 @@ const renderIntro = (map) => {
   }
   // see https://franksh.com/posts/d3-mapboxgl/ and https://bl.ocks.org/shimizu/5f4cee0fddc7a64b55a9
   const transform = d3.geoTransform({point: projectStream})
+  const pathSVG = d3.geoPath().projection(transform)
   const path = d3.geoPath().projection(transform).context(ctx)
 
   d3.selectAll('.map-overlay#story')
@@ -182,17 +166,33 @@ const renderIntro = (map) => {
   // a discrete time variable and a placeholder version to compare it against to see if enough time has passed
   let oldTDiscrete = Array(4).fill(-1)
   let tDiscreteArray = Array(4).fill(0)
-  let dta; let timer; let dashOffset; let svg;
+  let dta; let timer; let dashOffset; let svg; let arcs;
 
   // Section 3: Beginning the animation in a d3.timer()
   d3.json('../assets/data/intro_nhv.json').then((processed) => {
-    dta = processed
-    console.log(dta)
+    dta = topojson.feature(processed, processed.objects.intro_nhv)
+
     svg = d3.select('#map').append('svg')
-        .attr('width', width * window.devicePixelRatio)
-        .attr('height', height * window.devicePixelRatio)
         .style('width', width + 'px')
         .style('height', height + 'px')
+        .style('position', 'absolute')
+        .style('top', 0)
+        .style('left', 0)
+        .style('pointer-events', 'none')
+
+    arcs = svg.append('path')
+        .datum(topojson.mesh(processed))
+        .attr('d', pathSVG)
+        .attr('class', 'nhv-blocks')
+        .style('fill', 'none')
+        .style('stroke', '#002b36')
+        .style('opacity', 0.5)
+        .style('stroke-width', 2)
+
+    map.on('move', () => {
+      arcs.attr('d', pathSVG)
+    })
+
     animate()
   })
 }
