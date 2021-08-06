@@ -4,6 +4,9 @@ import ESLintPlugin from 'eslint-webpack-plugin'
 import CopyPlugin from 'copy-webpack-plugin'
 import {dirname} from 'path'
 import {fileURLToPath} from 'url'
+import { createRequire } from 'module'
+
+const require = createRequire(import.meta.url)
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 export default {
@@ -36,13 +39,30 @@ export default {
         loader: 'babel-loader',
         exclude: /node_modules/,
         options: {
-          presets: ['@babel/preset-env'],
+          presets: [
+            ['@babel/preset-env', { targets: 'defaults'}],
+          ],
         },
       },
       {
         test: /\.css$/i,
         use: ['style-loader', 'css-loader'],
       },
+      {
+        test: /\.csv$/,
+        loader: 'csv-loader',
+        exclude: /node_modules/,
+        options: {
+          dynamicTyping: true,
+          header: true,
+          skipEmptyLines: true,
+        },
+      },
     ],
+  },
+  resolve: {
+    fallback: {
+      fs: require.resolve('fs'),
+    },
   },
 }

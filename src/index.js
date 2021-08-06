@@ -11,7 +11,6 @@ import mapboxgl from 'mapbox-gl'
 
 import './index.css'
 import renderIntro from './modules/renderIntro.js'
-// import renderProperties from './modules/renderProperties.js'
 
 mapboxgl.accessToken = process.env.MAPBOX_ACCESS_TOKEN
 

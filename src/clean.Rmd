@@ -102,7 +102,7 @@ const fs = require('fs')
 const path = require('path')
 const topojson = require(
   path.resolve(process.cwd(), 
-               '../node_modules/topojson/dist/topojson.js')
+               '../node_modules/topojson-server/dist/topojson-server.js')
   )
 
 fs.readFile('../input_data/clean/intro_nhv.json', (err, data) => {

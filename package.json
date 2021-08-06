@@ -1,24 +1,24 @@
 {
-  "name": "new_haven_map",
+  "name": "counter-haven",
   "version": "1.0.0",
   "description": "",
   "type": "module",
   "scripts": {
-    "prebuild": "del-cli dist -f",
+    "prebuild": "del-cli dist -f && node src/assets/text/parse.js",
     "build": "webpack --progress --mode development",
     "server": "webpack serve --open --mode development",
     "start": "npm run build --silent && npm run server --silent"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/18kimn/new_haven_map.git"
+    "url": "git+https://github.com/CT-Data-Haven/counter-haven"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/18kimn/new_haven_map/issues"
+    "url": "https://github.com/CT-Data-Haven/counter-haven/issues"
   },
-  "homepage": "https://github.com/18kimn/new_haven_map#readme",
+  "homepage": "https://github.com/CT-Data-Haven/counter-haven#readme",
   "devDependencies": {
     "@babel/cli": "^7.14.5",
     "@babel/core": "^7.14.6",
@@ -26,6 +26,7 @@
     "babel-loader": "^8.2.2",
     "copy-webpack-plugin": "^9.0.1",
     "css-loader": "^5.2.6",
+    "csv-loader": "^3.0.3",
     "del-cli": "^4.0.0",
     "dotenv-webpack": "^7.0.3",
     "eslint": "^7.30.0",
@@ -43,7 +44,7 @@
   "dependencies": {
     "d3": "^7.0.0",
     "mapbox-gl": "^2.3.1",
-    "topojson": "^3.0.2",
+    "marked": "^2.1.3",
     "topojson-client": "^3.0.0",
     "topojson-server": "^3.0.0"
   }

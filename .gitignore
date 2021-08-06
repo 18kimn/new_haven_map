@@ -5,6 +5,7 @@ plots/
 # Package management
 node_modules/
 .env
+/dist
 
 # R and RStudio/RProj rubbish
 .RData

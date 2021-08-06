@@ -2,8 +2,11 @@
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
 import * as topojson from 'topojson-client'
+import renderProperties from './renderProperties.js'
+import dta from '../assets/data/intro_nhv.json'
+import displayText from '../utils/displayText.js'
 
-const runAnims = (map, dta) => {
+const renderIntro = (map) => {
   const canvas = d3.select('#map').select('canvas#container')
   const ctx = canvas.node().getContext('2d')
   const width = window.innerWidth
@@ -27,13 +30,8 @@ const runAnims = (map, dta) => {
   const pathSVG = d3.geoPath().projection(transform)
   const path = d3.geoPath().projection(transform).context(ctx)
 
-  d3.selectAll('.map-overlay#story')
-    .append('text')
-    .text('Map 0: Intro animation. Explanatory text will eventually go here.')
-  d3.selectAll('.map-overlay#nextBox')
-    .append('button')
-    .on('click', animateOut)
-    .text('Click me to move on.')
+  displayText(0, animateOut)
+
   const snakes = Array(4).fill(Array(2))
   const snakeColors = Array(4)
 
@@ -56,7 +54,7 @@ const runAnims = (map, dta) => {
     .style('fill', 'none')
     .style('stroke', '#002b36')
     .style('opacity', 0.5)
-    .style('stroke-width', 2)
+    .style('stroke-width', 1.5)
     .style('stroke-dasharray', '100 10')
 
   map.on('move', () => {
@@ -64,14 +62,18 @@ const runAnims = (map, dta) => {
   })
 
   // animating
-  const timer = d3.timer((elapsed) => {
-    // I want the fade-in animation to take 6 seconds and the starting gap to be 200 units ->
-    const t = elapsed / 6000 // t = 1 at 6 seconds. The length of a single "cycle" of animation
-    // version of t from 1 to 64 on a slightly offset cycle
+  const cycleLength = 6000
+  // a timer for the snake position values only
+  //  it only runs at most every 200 milliseconds
+  const snakeTimer = d3.interval((elapsed) => {
+    snakes.forEach((snake, i, array) => {
+      updateSnake(snake, i, array, elapsed / cycleLength)
+    })
+  }, 40)
 
-    snakes.forEach((snake, i, array) => updateSnake(snake, i, array, t))
-    drawFrame(t)
-  })
+  // to maintain performance and work with the mapbox drag actions
+  //  animations should just be fast as browser allows
+  const timer = d3.timer((elapsed) => drawFrame(elapsed / cycleLength))
 
 
   // ----------------------------------
@@ -81,7 +83,7 @@ const runAnims = (map, dta) => {
   // with index i in the snakesArray (the entire collection of snakes),
   // this function either picks a random place and color or pushes a new block onto the snake to "extend" it
   function updateSnake(snake, i, snakesArray, t) {
-    const isBeginning = snakes[0].every((d) => typeof(d) === 'undefined')
+    const isBeginning = snake.every((d) => typeof(d) === 'undefined')
     // test if t (on a loop) is close to 0. If yes, start a new snake
     const shouldRestart = 1 / 64 > (t * (i + 1) - Math.floor(t * (i + 1)))
     const shouldMakeNewSnake = isBeginning || shouldRestart
@@ -98,6 +100,7 @@ const runAnims = (map, dta) => {
       snakeShapes = snake[0]
       snakeIDs = snake[1]
       // neighbors array of last census block in the snake: some choices for what to add to the snake next
+      if (typeof(snakeShapes.slice(-1)[0]) == 'undefined') console.log(snakeShapes)
       let nbors = snakeShapes.slice(-1)[0].properties.neighbors
       nbors = nbors.filter(function(x) {
         return snakeIDs.indexOf(x - 1) < 0
@@ -142,6 +145,7 @@ const runAnims = (map, dta) => {
 
     // draws the snakes
     snakes.forEach((snake, snakeIndex) => {
+      if (typeof(snake[0]) == 'undefined') return snake[0]
       snake[0].forEach((d, i) => {
         ctx.beginPath()
         ctx.fillStyle = snakeColors[snakeIndex]
@@ -154,8 +158,9 @@ const runAnims = (map, dta) => {
     })
   }
 
-  // And this function does the opposite by running drawFrame "backwards" and erasing the canvas
+  // this function runs drawFrame "backwards", erases the canvas, and brings in the next map
   function animateOut() {
+    snakeTimer.stop()
     timer.stop()
     map.easeTo({
       duration: 250,
@@ -166,27 +171,34 @@ const runAnims = (map, dta) => {
     // preloads the grid video animation, which comes after the following map (e.g. load in advance)
     map.getSource('gridVideoSource').getVideo().loop = false
 
-    // as before, but animate out
+    // animate out and begin the next map 
+    const duration = 1500
+
+    arcs.transition()
+      .duration(duration)
+      .style('stroke-dasharray', '0 0')
+      .style('opacity', 0)
+    canvas.transition()
+      .duration(duration)
+      .style('opacity', 0)
+    d3.select('.mapboxgl-canvas')
+      .transition()
+      .duration(duration)
+      .style('opacity', 1)
+
     const outTimer = d3.timer((elapsed) => {
-      const t = d3.easeLinear(elapsed / 750) 
-      if (t < 2) {
-        drawFrame(2 - t)
-        d3.selectAll('.mapboxgl-canvas')
-          .style('opacity', Math.min(t - 1, 0))
-      } else {
+      const t = d3.easeCubicInOut(elapsed / duration) 
+      drawFrame(2 - t)
+
+      if (t > 1) {
         // canvas was covering up mapbox click events before
         // we're not going to take it off of the DOM though because we'll still use it for the world map
         canvas.style('display', 'none')
+        renderProperties(map)
         outTimer.stop()
       }
     })
   }
-}
-
-const renderIntro = (map) => {
-  // wrapper function, mainly to help with scopes above and avoid the use of let or var
-  d3.json('../assets/data/intro_nhv.json')
-    .then((processed) => runAnims(map, processed))
 }
 
 export default renderIntro
