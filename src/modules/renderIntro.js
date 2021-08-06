@@ -1,149 +1,22 @@
+/* eslint-disable require-jsdoc */
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
 import * as topojson from 'topojson-client'
-const renderIntro = (map) => {
-  // Section 1: Animation functions that will be called in d3.timer() to update the canvas
 
-  // Given a snake (defined as a two element array, the first being geometries and the second being block IDs)
-  // with index i in the snakesArray (the entire collection of snakes),
-  // this function either picks a random place and color or pushes a new block onto the snake to "extend" it
-  const updateSnake = (snake, i, snakesArray) => {
-    const tDiscrete = tDiscreteArray[i]
-    let snakeShapes; let snakeIDs
-    if (tDiscrete == 0 || oldTDiscrete[0] == -1) { // if iDiscrete is 0 or oldTDiscrete is -1, that means a new snake should be started instead of an old snake appended to
-      snakeColors[i] = '#' + Math.floor(Math.random()*16777215).toString(16) // generate a random color. idk where that number came from lmao
-      snakeIDs = [Math.floor(Math.random() * 1494)] // pick a random block and put its ID into this array of IDs of the blocks in the snake so that we can make sure not to add a block that's already in the snake later on
-      snakeShapes = [dta.features[snakeIDs]] // the corresponding geometry as a one-element array
-    } else {
-      snakeShapes = snake[0]
-      snakeIDs = snake[1]
-      // neighbors array of last census block in the snake: some choices for what to add to the snake next
-      let nbors = snakeShapes.slice(-1)[0].properties.neighbors
-      nbors = nbors.filter(function(x) {
-        return snakeIDs.indexOf(x -1) < 0
-      })[0] // get the first item in that neighbors array that doesn't overlap with what's already in the snake
-      snakeIDs.push(nbors - 1) // add the corresponding geometry to the snake
-      snakeShapes.push(dta.features[nbors - 1])
-    }
-
-    if (snakeShapes.length > 15) { // make sure there's only 15 elements in the snake at a time; just remove the first one to keep the snake moving
-      snakeIDs.shift()
-    }
-
-    snakesArray[i] = [snakeShapes, snakeIDs]
-  }
-
-  // Given a dash array offset, an array describing the length of a dash and gap, alpha, and time,
-  // this function 1) draws the blocks, 2) makes a blue "wave" spreading out from the center of New Haven, and
-  // 3) renders "snakes" as updated by the updateSnake function above.
-  const drawFrame = (dashOffset = 0, lineDash = [0, 0], t = 0) => {
-    ctx.save();
-    ctx.clearRect(0, 0, width, height);
-    arcs.style('stroke-dasharray', lineDash[0] + ' ' + lineDash[1])
-        .style('stroke-dashoffset', dashOffset)
-
-    // the "wave": make an eight-layer fill
-    ctx.beginPath()
-    ctx.fillStyle = '#038cfc'
-    Array(8).fill(0).forEach((_, i) => {
-      // filter for the properties between given distances away from the new haven green
-      const subset = dta.features.filter((d) => {
-        return d.properties.dist < (t - (.05 * i)) &&
-      d.properties.dist > (t - (0.05 * (i+1)))
-      })
-      ctx.globalAlpha = .5 - (i * .1)
-      path({type: 'FeatureCollection',
-        features: subset})
-      ctx.fill()
-    })
-    ctx.closePath()
-
-    return null
-
-    // draw the snakes too
-    // feel a little bit bad about this below chunk because it's so many calls to the canvas
-    // but because alphas, colors, geometries are different there does need to be many calls i think? how cna i batch them?
-    snakes.forEach((snake, snakeIndex) => {
-      snake[0].forEach((d, i) => {
-        ctx.beginPath()
-        ctx.fillStyle = snakeColors[snakeIndex]
-        ctx.globalAlpha = .07*i
-        path({type: 'FeatureCollection',
-          crs: {type: 'name',
-            properties: {name: 'urn:ogc:def:crs:OGC:1.3:CRS84'}},
-          features: [d]})
-        ctx.fill()
-        ctx.restore()
-      })
-    })
-  }
-
-  // This function combines drawFrame() and updateSnake() to actually run the intro animation
-  const animate = () => {
-    timer = d3.timer((elapsed) => {
-    // I want the fade-in animation to take 6 seconds and the starting gap to be 200 units ->
-      const t = elapsed / 6000 // t = 1 at 6 seconds. The length of a single "cycle" of animation
-      // version of t from 1 to 64 on a slightly offset cycle
-      tDiscreteArray = Array(4).fill(0).map((_, i) => {
-        return Math.floor(64 * (1.1*t*(i+1) - Math.floor(1.1*t*(i+1))))
-      })
-      // is the new set of timekeepers the same as the old set of timekeepers?
-      const timeUnchanged = oldTDiscrete.every((d, i) => d === tDiscreteArray[i])
-      // if not (if more than one unit of time has passed), or if this is the first run
-      if (!timeUnchanged || oldTDiscrete[0] === -1) snakes.forEach(updateSnake)
-
-      dashOffset = -(t-1)*50 // only updating it here so that it can be referred to by other functions here
-      drawFrame(dashOffset, [100, 10], 1.5*t - Math.floor(1.5*t))
-
-      oldTDiscrete = Object.assign([], tDiscreteArray) // update the "old t" with a shallow copy
-    })
-  }
-
-
-  // And this function does the opposite by running drawFrame "backwards" and erasing the canvas
-  const animateOut = () => {
-    timer.stop()
-    map.easeTo({
-      duration: 250,
-      zoom: 13,
-      center: [-72.931, 41.31099],
-    })
-
-    // preloads the grid video animation, which comes after the following map (e.g. load in advance)
-    map.getSource('gridVideoSource').getVideo().loop = false
-
-    // as before, but animate out
-    timer = d3.timer((elapsed) => {
-      const t = d3.easeLinear(elapsed / 750) // represents time, sort of
-      if (t < 1) {
-        drawFrame(dashOffset, [200-100*t, (50 + 75*t)]) // 200, 50,1 -> 0, 200, 0 over 2 seconds; alpha starts decreasing at 1 second in
-      } else if (t > 1 && t < 2) {
-        drawFrame(dashOffset, [200-100*t, (50 + 75*t)], 2 - t)
-        d3.selectAll('.mapboxgl-canvas').style('opacity', (t - 1))
-      } else {
-        // canvas was covering up mapbox click events before
-        // we're not going to take it off of the DOM though because we'll still use it for the world map
-        canvas.style('display', 'none')
-        timer.stop()
-      }
-    })
-  }
-
-  // __________________________________________________________________________________________________
-  // Section 2: Variables needed as setup, like initializing the canvas, getting a map projection, etc.
+const runAnims = (map, dta) => {
   const canvas = d3.select('#map').select('canvas#container')
   const ctx = canvas.node().getContext('2d')
   const width = window.innerWidth
   const height = window.innerHeight
   canvas.attr('width', width * window.devicePixelRatio)
-      .attr('height', height * window.devicePixelRatio)
-      .style('width', width + 'px')
-      .style('height', height + 'px')
+    .attr('height', height * window.devicePixelRatio)
+    .style('width', width + 'px')
+    .style('height', height + 'px')
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
 
-  // projection function that only works within a geotransform stream (otherwise the "this" reference breaks)
+  // projection function for a geotransform stream (otherwise the "this" reference breaks)
   // also don't change the function(){} to arrow syntax here, that also breaks the "this" keyword
-  const projectStream = function(lon, lat) {
+  function projectStream(lon, lat) {
     // the "rosetta stone" between mapbox gl and d3
     const point = map.project(new mapboxgl.LngLat(lon, lat))
     // eslint-disable-next-line no-invalid-this
@@ -155,46 +28,165 @@ const renderIntro = (map) => {
   const path = d3.geoPath().projection(transform).context(ctx)
 
   d3.selectAll('.map-overlay#story')
-      .append('text')
-      .text('Map 0: Intro animation. Explanatory text will eventually go here.')
+    .append('text')
+    .text('Map 0: Intro animation. Explanatory text will eventually go here.')
   d3.selectAll('.map-overlay#nextBox')
-      .append('button')
-      .on('click', animateOut)
-      .text('Click me to move on.')
-  const snakes = Array(4).fill(Array(2).fill(0))
+    .append('button')
+    .on('click', animateOut)
+    .text('Click me to move on.')
+  const snakes = Array(4).fill(Array(2))
   const snakeColors = Array(4)
-  // a discrete time variable and a placeholder version to compare it against to see if enough time has passed
-  let oldTDiscrete = Array(4).fill(-1)
-  let tDiscreteArray = Array(4).fill(0)
-  let dta; let timer; let dashOffset; let svg; let arcs;
 
-  // Section 3: Beginning the animation in a d3.timer()
-  d3.json('../assets/data/intro_nhv.json').then((processed) => {
-    dta = topojson.feature(processed, processed.objects.intro_nhv)
+  const features = topojson
+    .feature(dta, dta.objects.intro_nhv)
+    .features
 
-    svg = d3.select('#map').append('svg')
-        .style('width', width + 'px')
-        .style('height', height + 'px')
-        .style('position', 'absolute')
-        .style('top', 0)
-        .style('left', 0)
-        .style('pointer-events', 'none')
+  const svg = d3.select('#map').append('svg')
+    .style('width', width + 'px')
+    .style('height', height + 'px')
+    .style('position', 'absolute')
+    .style('top', 0)
+    .style('left', 0)
+    .style('pointer-events', 'none')
 
-    arcs = svg.append('path')
-        .datum(topojson.mesh(processed))
-        .attr('d', pathSVG)
-        .attr('class', 'nhv-blocks')
-        .style('fill', 'none')
-        .style('stroke', '#002b36')
-        .style('opacity', 0.5)
-        .style('stroke-width', 2)
+  const arcs = svg.append('path')
+    .datum(topojson.mesh(dta))
+    .attr('d', pathSVG)
+    .attr('class', 'nhv-blocks')
+    .style('fill', 'none')
+    .style('stroke', '#002b36')
+    .style('opacity', 0.5)
+    .style('stroke-width', 2)
+    .style('stroke-dasharray', '100 10')
 
-    map.on('move', () => {
-      arcs.attr('d', pathSVG)
+  map.on('move', () => {
+    arcs.attr('d', pathSVG)
+  })
+
+  // animating
+  const timer = d3.timer((elapsed) => {
+    // I want the fade-in animation to take 6 seconds and the starting gap to be 200 units ->
+    const t = elapsed / 6000 // t = 1 at 6 seconds. The length of a single "cycle" of animation
+    // version of t from 1 to 64 on a slightly offset cycle
+
+    snakes.forEach((snake, i, array) => updateSnake(snake, i, array, t))
+    drawFrame(t)
+  })
+
+
+  // ----------------------------------
+  // Section 2: Animation functions that will be called in d3.timer() to update the canvas
+
+  // Given a snake (defined as a two element array, the first being geometries and the second being block IDs)
+  // with index i in the snakesArray (the entire collection of snakes),
+  // this function either picks a random place and color or pushes a new block onto the snake to "extend" it
+  function updateSnake(snake, i, snakesArray, t) {
+    const isBeginning = snakes[0].every((d) => typeof(d) === 'undefined')
+    // test if t (on a loop) is close to 0. If yes, start a new snake
+    const shouldRestart = 1 / 64 > (t * (i + 1) - Math.floor(t * (i + 1)))
+    const shouldMakeNewSnake = isBeginning || shouldRestart
+
+    let snakeShapes; let snakeIDs
+    if (shouldMakeNewSnake) { 
+      // generate a random color. idk where that number came from lmao
+      snakeColors[i] = '#' + Math.floor(Math.random() * 16777215).toString(16)
+      // pick a random block and put its ID into this array of IDs of the blocks in the snake 
+      //  so that we can make sure not to add a block that's already in the snake later on
+      snakeIDs = [Math.floor(Math.random() * 1494)] 
+      snakeShapes = [features[snakeIDs]] // the corresponding geometry as a one-element array
+    } else {
+      snakeShapes = snake[0]
+      snakeIDs = snake[1]
+      // neighbors array of last census block in the snake: some choices for what to add to the snake next
+      let nbors = snakeShapes.slice(-1)[0].properties.neighbors
+      nbors = nbors.filter(function(x) {
+        return snakeIDs.indexOf(x - 1) < 0
+      })[0] // get the first item in that neighbors array that doesn't overlap with what's already in the snake
+      snakeIDs.push(nbors - 1) // add the corresponding geometry to the snake
+      snakeShapes.push(features[nbors - 1])
+    }
+    
+    // make sure there's only 15 elements in the snake at a time
+    // if needed, just remove the first one to keep the snake moving
+    if (snakeShapes.length > 15) {
+      snakeShapes.shift()
+      snakeIDs.shift()
+    }
+
+    snakesArray[i] = [snakeShapes, snakeIDs]
+  }
+
+  // Given a time 't', this function
+  // 1) draws the blocks, 2) makes a blue "wave" spreading out from the center of New Haven, and
+  // 3) renders "snakes" as updated by the updateSnake function above.
+  function drawFrame(t) {
+    arcs.style('stroke-dashoffset', -(t - 1) * 50)
+
+    // the "wave": make an eight-layer fill
+    ctx.save()
+    ctx.clearRect(0, 0, width, height)
+    ctx.beginPath()
+    ctx.fillStyle = '#038cfc'
+    Array(8).fill(0).forEach((_, i) => {
+      // filter for the properties between given distances away from the new haven green
+      const subset = features.filter((d) => {
+        return d.properties.dist < (t - (.05 * i)) &&
+      d.properties.dist > (t - (0.05 * (i + 1)))
+      })
+      ctx.globalAlpha = .5 - (i * .1)
+      path({type: 'FeatureCollection',
+        features: subset})
+      ctx.fill()
+    })
+    ctx.closePath()
+
+    // draws the snakes
+    snakes.forEach((snake, snakeIndex) => {
+      snake[0].forEach((d, i) => {
+        ctx.beginPath()
+        ctx.fillStyle = snakeColors[snakeIndex]
+        ctx.globalAlpha = .07 * i
+        path({type: 'FeatureCollection',
+          features: [d]})
+        ctx.fill()
+        ctx.restore()
+      })
+    })
+  }
+
+  // And this function does the opposite by running drawFrame "backwards" and erasing the canvas
+  function animateOut() {
+    timer.stop()
+    map.easeTo({
+      duration: 250,
+      zoom: 13,
+      center: [-72.931, 41.31099],
     })
 
-    animate()
-  })
+    // preloads the grid video animation, which comes after the following map (e.g. load in advance)
+    map.getSource('gridVideoSource').getVideo().loop = false
+
+    // as before, but animate out
+    const outTimer = d3.timer((elapsed) => {
+      const t = d3.easeLinear(elapsed / 750) 
+      if (t < 2) {
+        drawFrame(2 - t)
+        d3.selectAll('.mapboxgl-canvas')
+          .style('opacity', Math.min(t - 1, 0))
+      } else {
+        // canvas was covering up mapbox click events before
+        // we're not going to take it off of the DOM though because we'll still use it for the world map
+        canvas.style('display', 'none')
+        outTimer.stop()
+      }
+    })
+  }
+}
+
+const renderIntro = (map) => {
+  // wrapper function, mainly to help with scopes above and avoid the use of let or var
+  d3.json('../assets/data/intro_nhv.json')
+    .then((processed) => runAnims(map, processed))
 }
 
 export default renderIntro

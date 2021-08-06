@@ -22,7 +22,7 @@ export default {
   plugins: [
     new DotenvWebpackPlugin(),
     new HtmlWebpackPlugin({template: 'src/index.html'}),
-    new ESLintPlugin(),
+    new ESLintPlugin({fix: true}),
     new CopyPlugin({
       patterns: [
         {from: 'src/assets', to: 'assets'},

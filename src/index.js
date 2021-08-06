@@ -53,7 +53,7 @@ map.on('load', () => {
   attrDiv.appendChild(attr[0])
   attrDiv.appendChild(attr[1]) // there must be a better way to do this?
   d3.selectAll('.mapboxgl-ctrl.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo')
-      .transition().duration(1500).style('opacity', 1)
+    .transition().duration(1500).style('opacity', 1)
 })
 
 renderIntro(map)
