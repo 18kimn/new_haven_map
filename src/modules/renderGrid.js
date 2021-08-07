@@ -7,14 +7,14 @@ const renderGrid = (map) => {
 
   map.setMaxBounds([[-73.15045804423596, 41.25110810421933],
     [-72.76211186878697, 41.38281736836447]])
-      .fitBounds([[-73.15045804423596, 41.25110810421933],
-        [-72.76211186878697, 41.38281736836447]], {
-        duration: 1000,
-      })
+    .fitBounds([[-73.15045804423596, 41.25110810421933],
+      [-72.76211186878697, 41.38281736836447]], {
+      duration: 1000,
+    })
 
   video = map.getSource('gridVideoSource').getVideo()
   video.currentTime = 0
-  // our new strategy is to render a mapbox video :D
+
   timer = d3.timer((elapsed) => {
     t = d3.easeCubic(elapsed / 3500)
 
@@ -27,9 +27,9 @@ const renderGrid = (map) => {
     } else if (elapsed > 1000 && video.currentTime < 2.5) {
       // just make sure the pait properties finish correctly
       map.setPaintProperty('gridVideoLayer', 'raster-opacity', 1)
-          .setPaintProperty( 'settlement-subdivision-label', 'text-opacity', 0)
-          .setPaintProperty('propBlackLayer', 'fill-opacity', 0)
-          .setPaintProperty('holcLayer', 'fill-opacity', 0)
+        .setPaintProperty( 'settlement-subdivision-label', 'text-opacity', 0)
+        .setPaintProperty('propBlackLayer', 'fill-opacity', 0)
+        .setPaintProperty('holcLayer', 'fill-opacity', 0)
       video.play()
     } else if (video.currentTime > 2.5) {
       video.pause()
@@ -38,9 +38,9 @@ const renderGrid = (map) => {
     // fade out the other map layers and fade in the grid layer
     if (t < 0.2858) {
       map.setPaintProperty('gridVideoLayer', 'raster-opacity', t * 3.5)
-          .setPaintProperty( 'settlement-subdivision-label', 'text-opacity', 1-3.5*t)
-          .setPaintProperty('propBlackLayer', 'fill-opacity', 1-3.5*t)
-          .setPaintProperty('holcLayer', 'fill-opacity', 1-3.5*t)
+        .setPaintProperty( 'settlement-subdivision-label', 'text-opacity', 1 - 3.5 * t)
+        .setPaintProperty('propBlackLayer', 'fill-opacity', 1 - 3.5 * t)
+        .setPaintProperty('holcLayer', 'fill-opacity', 1 - 3.5 * t)
     }
   })
 }

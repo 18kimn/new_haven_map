@@ -3,120 +3,94 @@ html, body {
    padding: 0;
    height: 100%;
    overflow-y: hidden;
-}
-
-svg {
-  z-index: 4;
-  position: fixed;
-}
-
-text {
-  font-family: "Lato", sans-serif;
-}
-
-
-#container {
-  pointer-events: none;
+   font-family: "Lato", sans-serif;
 }
 
 #map {
-  position: absolute;
+  position: static;
   top: 0;
   bottom: 0;
   width: 100%;
   height: 100%;
 }
 
-#static {
+.static {
     width: 100%;
     height: 100%;
     grid-column: 1;
     grid-row: 1;
 }
 
+/* ------------ */ 
+/* sidebar */
 
-/* EVERYTHING IN THE SIDEBAR SHOULD BE HASHED OUT HERE
-*/
-#story {
+.story {
+  position: absolute;
   top: 0;
-  left: 1%;
-  height: 99.5%;
-  margin-top: 0.5%;
-  width: max(30%, 360px); /* 360px is the length of the mapbox logo attribution plus the mapbox text attribution */
-  z-index: 5;
+  left: 2%;
+  padding-left: 20px;
+  padding-right: 20px;
+  width: 50ch; /* 360px is the length of the mapbox logo attribution plus the mapbox text attribution */
+  height: 100%;
   display: grid;
-  grid-template-rows: [title] 10% [story-body] auto [nextButton] 5% [attribution] 5%;
+  grid-template-rows: [header] 10% [content] 87% [attribution] 3%;
   justify-content: left;
+  background: rgb(255 255 255 / 95%);
+  box-shadow: 0px 5px 5px 0px rgb(0 0 0 / 20%),  0px 5px 5px 0px rgb(0 0 0 / 20%);
 }
 
-#projectTitle{
-  grid-row-start: title;
-  grid-row-end: story-body;
-}
-
-#nextBox {
-  grid-row-start: nextButton;
-  grid-row-end: attribution;
-  z-index: 4;
-}
-
-#attribution {
-  width: 100%;
-  grid-row-start: attribution;
-  z-index: 5;
+.story-header{
+  grid-row: header / content;
   display: grid;
-  grid-template-columns: [logoattr] auto [textattr] auto;
+  grid-auto-flow: column;
+  align-items: center;
+}
+
+.nextButton {
+  margin-left: auto;
+  width: 1.5em;
+  height: 1.5em;
+  cursor:pointer;
+}
+
+.nextButton:hover{
+  transition-duration: 0.3s;
+  background-color: rgb(0 0 0 / 10%);
+}
+
+.story-body {
+  overflow-y: auto;
+}
+.story-body::-webkit-scrollbar {
+  display: none;
+}
+
+.attribution {
+  grid-row: attribution;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   justify-content: left;
   align-items: center;
-  font-size: 11px;
-  overflow-y: hidden;
   margin-bottom: 5px;
-}
-
-button {
-  background:none;
-  border:none;
-  font-family: 'Lato', sans-serif;
-  font-size: 14px;
-  text-decoration: underline;
-  cursor:pointer;
-  justify-content: left;
-}
-
-/* start off the attribution as opacity 0 so that it can be faded in, instead of abruptly teleporting */
-.mapboxgl-ctrl.mapboxgl-ctrl-attrib {
   opacity: 0;
 }
-.mapboxgl-ctrl-logo {
-  opacity: 0
-}
 
-.map-overlay {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  background: rgba(255, 255, 255, 0.9);
-  font-family: "Lato", sans-serif;
-  overflow: auto;
-  border-radius: 3px;
-  z-index: 5;
-}
+/* ----------------------------- */ 
+/* map actions styling */ 
+
 
 .nation:hover{
   stroke: #fff;
   stroke-width: 1px;
 }
-.mapboxgl-popup {
-  z-index: 4;
-}
+
 .mapboxgl-canvas {
   opacity: 0;
-  position: absolute;
 }
 
 
-div.tooltip {
-  z-index: 20;
+.tooltip {
   display: flex;
   flex-direction: column;
 
@@ -135,12 +109,14 @@ div.tooltip {
 
 /* legend */
 
-#legend {
+.legend {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
   padding: 10px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   line-height: 18px;
-  margin-bottom: 40px;
-  z-index: 4;
+  background:rgb(255 255 255 / 95%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .legend-key {
@@ -149,7 +125,6 @@ div.tooltip {
   width: 10px;
   height: 10px;
   margin-right: 5px;
-  z-index: 4;
 }
 .mapboxgl-popup-content {
   font-family: "Lato", sans-serif;

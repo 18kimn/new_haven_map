@@ -1,5 +1,7 @@
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
+import renderRedlining from './renderRedlining.js'
+import displayText from '../utils/displayText.js'
 
 const renderProperties = (map) => {
   map.on('click', 'og-geometries', propertyClick)
@@ -11,22 +13,18 @@ const renderProperties = (map) => {
         d3.selectAll('#blockPopup').remove()
       }
     })
-    
-  storyText.text('Map 1: New Haven properties, colored by value. Explanatory text will eventually go here.')
-  nextButton.html("<button onclick='renderRedlining()'>Click to move on.</button>")
 
-  d3.select('body').append('div')
-    .attr('class', 'map-overlay')
-    .attr('id', 'legend')
+  const legend = d3.select('body').append('div')
+    .attr('class', 'legend')
     .html('<b>Property Value</b>')
+    .node()
   const layers = ['$0', '$50,000', '$75,000', '$150,000',
     '$250,000', '$500,000', '$800,000', '$1,000,000+']
   const colors = ['#150E37', '#481078', '#7B2382', '#B0357B',
     '#E34E65', '#FB845F', '#FEC185', '#FCFDBF']
-
   // the mapbox-given way to make a legend
   // wait hwo does this know to append to .map-overlay? I mean I guess it works? so confused
-  for (i = 0; i < layers.length; i++) {
+  for (let i = 0; i < layers.length; i++) {
     const layer = layers[i]
     const color = colors[i]
     const item = document.createElement('div')
@@ -41,6 +39,8 @@ const renderProperties = (map) => {
     legend.appendChild(item)
   }
 
+  displayText(1, renderRedlining)
+  
   function propertyClick(e) {
     new mapboxgl.Popup()
       .setLngLat(e.lngLat)

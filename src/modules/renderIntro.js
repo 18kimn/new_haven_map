@@ -7,7 +7,7 @@ import dta from '../assets/data/intro_nhv.json'
 import displayText from '../utils/displayText.js'
 
 const renderIntro = (map) => {
-  const canvas = d3.select('#map').select('canvas#container')
+  const canvas = d3.select('#map').select('canvas.container')
   const ctx = canvas.node().getContext('2d')
   const width = window.innerWidth
   const height = window.innerHeight
@@ -15,6 +15,8 @@ const renderIntro = (map) => {
     .attr('height', height * window.devicePixelRatio)
     .style('width', width + 'px')
     .style('height', height + 'px')
+    .style('pointer-events', 'none')
+    .style('background', '#fdf6e3')
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
 
   // projection function for a geotransform stream (otherwise the "this" reference breaks)
@@ -53,9 +55,9 @@ const renderIntro = (map) => {
     .attr('class', 'nhv-blocks')
     .style('fill', 'none')
     .style('stroke', '#002b36')
-    .style('opacity', 0.5)
-    .style('stroke-width', 1.5)
-    .style('stroke-dasharray', '100 10')
+    .style('stroke-opacity', 0.2)
+    .style('stroke-width', 3)
+    .style('stroke-dasharray', '200 10')
 
   map.on('move', () => {
     arcs.attr('d', pathSVG)
@@ -64,12 +66,12 @@ const renderIntro = (map) => {
   // animating
   const cycleLength = 6000
   // a timer for the snake position values only
-  //  it only runs at most every 200 milliseconds
+  //  it only runs at most every 50 milliseconds
   const snakeTimer = d3.interval((elapsed) => {
     snakes.forEach((snake, i, array) => {
       updateSnake(snake, i, array, elapsed / cycleLength)
     })
-  }, 40)
+  }, 50)
 
   // to maintain performance and work with the mapbox drag actions
   //  animations should just be fast as browser allows
@@ -84,6 +86,7 @@ const renderIntro = (map) => {
   // this function either picks a random place and color or pushes a new block onto the snake to "extend" it
   function updateSnake(snake, i, snakesArray, t) {
     const isBeginning = snake.every((d) => typeof(d) === 'undefined')
+
     // test if t (on a loop) is close to 0. If yes, start a new snake
     const shouldRestart = 1 / 64 > (t * (i + 1) - Math.floor(t * (i + 1)))
     const shouldMakeNewSnake = isBeginning || shouldRestart
@@ -100,13 +103,18 @@ const renderIntro = (map) => {
       snakeShapes = snake[0]
       snakeIDs = snake[1]
       // neighbors array of last census block in the snake: some choices for what to add to the snake next
-      if (typeof(snakeShapes.slice(-1)[0]) == 'undefined') console.log(snakeShapes)
-      let nbors = snakeShapes.slice(-1)[0].properties.neighbors
-      nbors = nbors.filter(function(x) {
+      const neighbors = snakeShapes.slice(-1)[0].properties.neighbors
+      const neighbor = neighbors.filter((x) => {
         return snakeIDs.indexOf(x - 1) < 0
-      })[0] // get the first item in that neighbors array that doesn't overlap with what's already in the snake
-      snakeIDs.push(nbors - 1) // add the corresponding geometry to the snake
-      snakeShapes.push(features[nbors - 1])
+      })[0] || neighbors[0] // get the first item in that neighbors array that doesn't overlap with what's already in the snake
+      if (neighbor) {
+        snakeIDs.push(neighbor - 1) // add the corresponding geometry to the snake
+        snakeShapes.push(features[neighbor - 1]) 
+      } else {
+        snakeIDs = undefined
+        snakeShapes = undefined
+        return undefined
+      }
     }
     
     // make sure there's only 15 elements in the snake at a time
@@ -130,11 +138,13 @@ const renderIntro = (map) => {
     ctx.clearRect(0, 0, width, height)
     ctx.beginPath()
     ctx.fillStyle = '#038cfc'
+    const tCycle = (t - Math.floor(t)) * 4 // goes from 0 -> 4 and then repeats
+    // wave only renders when tCycle < 1
     Array(8).fill(0).forEach((_, i) => {
       // filter for the properties between given distances away from the new haven green
       const subset = features.filter((d) => {
-        return d.properties.dist < (t - (.05 * i)) &&
-      d.properties.dist > (t - (0.05 * (i + 1)))
+        return d.properties.dist < (tCycle - (.05 * i)) &&
+      d.properties.dist > (tCycle - (0.05 * (i + 1)))
       })
       ctx.globalAlpha = .5 - (i * .1)
       path({type: 'FeatureCollection',
@@ -167,9 +177,6 @@ const renderIntro = (map) => {
       zoom: 13,
       center: [-72.931, 41.31099],
     })
-
-    // preloads the grid video animation, which comes after the following map (e.g. load in advance)
-    map.getSource('gridVideoSource').getVideo().loop = false
 
     // animate out and begin the next map 
     const duration = 1500

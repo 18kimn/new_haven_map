@@ -1,4 +1,3 @@
-/* eslint-disable no-var */
 /* previously this was a giant file containing code for every map and coming in at some 900 lines
 that technically worked but global scope was so polluted. So I split each map into functions exported by their own modules,
 with each module receiving one input (the map) and having access to no other global variables.
@@ -8,7 +7,6 @@ but for overall increased readability.
 */
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
-
 import './index.css'
 import renderIntro from './modules/renderIntro.js'
 
@@ -19,8 +17,8 @@ const map = new mapboxgl.Map({
   style: 'mapbox://styles/nathanckim18/ckmvgk5g10i8017mv4fmwme8j',
   minZoom: 11.5,
   maxZoom: 16.5,
-  zoom: 12,
-  center: [-72.959704, 41.31099],
+  zoom: 13,
+  center: [-72.931, 41.31099],
   maxBounds: [
     [-73.21036, 41.22615],
     [-72.74838, 41.39701],
@@ -28,7 +26,6 @@ const map = new mapboxgl.Map({
 })
 
 map.on('load', () => {
-  console.log(map)
   map.addSource('gridVideoSource', {
     'type': 'video',
     'urls': ['assets/grid.mp4'],
@@ -46,9 +43,15 @@ map.on('load', () => {
       'raster-opacity': 0,
     },
   }, 'settlement-subdivision-label')
-  // moving mapbox attribution to the bottom left
+
+  map.on('sourcedata', (e) => {
+    if (e.sourceId === 'gridVideoSource' && e.isSourceLoaded === true) {
+      map.getSource('gridVideoSource').getVideo().loop = false
+    }
+  })
+  // moves mapbox attribution to the bottom left
   const attr = d3.selectAll('.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo').nodes()
-  const attrDiv = d3.selectAll('#attribution').node()
+  const attrDiv = d3.selectAll('.attribution').node()
   attrDiv.appendChild(attr[0])
   attrDiv.appendChild(attr[1]) // there must be a better way to do this?
   d3.selectAll('.mapboxgl-ctrl.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo')
@@ -56,10 +59,3 @@ map.on('load', () => {
 })
 
 renderIntro(map)
-
-/*
-const filenames = ['static/data/native_land.geojson',
-  'static/data/holc.geojson', 'static/data/nhv_neighborhoods.geojson',
-  'static/data/world_map.geojson']
-*/
-
