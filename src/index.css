@@ -42,6 +42,7 @@ html, body {
 .story-header{
   grid-row: header / content;
   display: grid;
+  grid-template-columns: [header] 80% [backButton] 10% [nextButton] 10%;
   grid-auto-flow: column;
   align-items: center;
 }
@@ -51,6 +52,15 @@ html, body {
   width: 1.5em;
   height: 1.5em;
   cursor:pointer;
+}
+
+.backButton { 
+  margin-left: auto;
+  width: 1.5em;
+  height: 1.5em;
+  cursor:pointer;
+  -webkit-transform: scaleX(-1);
+  transform: scaleX(-1);
 }
 
 .nextButton:hover{

@@ -2,11 +2,13 @@
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
 import * as topojson from 'topojson-client'
-import renderProperties from './renderProperties.js'
 import dta from '../assets/data/intro_nhv.json'
-import displayText from '../utils/displayText.js'
 
 const renderIntro = (map) => {
+  d3.select('.mapboxgl-canvas')
+    .transition()
+    .duration(1500)
+    .style('opacity', 0)
   const canvas = d3.select('#map').select('canvas.container')
   const ctx = canvas.node().getContext('2d')
   const width = window.innerWidth
@@ -17,6 +19,8 @@ const renderIntro = (map) => {
     .style('height', height + 'px')
     .style('pointer-events', 'none')
     .style('background', '#fdf6e3')
+    .style('display', 'block')
+    .style('opacity', 1)
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
 
   // projection function for a geotransform stream (otherwise the "this" reference breaks)
@@ -32,8 +36,6 @@ const renderIntro = (map) => {
   const pathSVG = d3.geoPath().projection(transform)
   const path = d3.geoPath().projection(transform).context(ctx)
 
-  displayText(0, animateOut)
-
   const snakes = Array(4).fill(Array(2))
   const snakeColors = Array(4)
 
@@ -41,6 +43,7 @@ const renderIntro = (map) => {
     .feature(dta, dta.objects.intro_nhv)
     .features
 
+  d3.select('#map svg').remove()
   const svg = d3.select('#map').append('svg')
     .style('width', width + 'px')
     .style('height', height + 'px')
@@ -71,11 +74,19 @@ const renderIntro = (map) => {
     snakes.forEach((snake, i, array) => {
       updateSnake(snake, i, array, elapsed / cycleLength)
     })
+    if (d3.select('canvas.container').style('display') === 'none') {
+      snakeTimer.stop()
+    }
   }, 50)
 
   // to maintain performance and work with the mapbox drag actions
   //  animations should just be fast as browser allows
-  const timer = d3.timer((elapsed) => drawFrame(elapsed / cycleLength))
+  const timer = d3.timer((elapsed) => {
+    drawFrame(elapsed / cycleLength)
+    if (d3.select('canvas.container').style('display') === 'none') {
+      timer.stop()
+    }
+  })
 
 
   // ----------------------------------
@@ -165,45 +176,6 @@ const renderIntro = (map) => {
         ctx.fill()
         ctx.restore()
       })
-    })
-  }
-
-  // this function runs drawFrame "backwards", erases the canvas, and brings in the next map
-  function animateOut() {
-    snakeTimer.stop()
-    timer.stop()
-    map.easeTo({
-      duration: 250,
-      zoom: 13,
-      center: [-72.931, 41.31099],
-    })
-
-    // animate out and begin the next map 
-    const duration = 1500
-
-    arcs.transition()
-      .duration(duration)
-      .style('stroke-dasharray', '0 0')
-      .style('opacity', 0)
-    canvas.transition()
-      .duration(duration)
-      .style('opacity', 0)
-    d3.select('.mapboxgl-canvas')
-      .transition()
-      .duration(duration)
-      .style('opacity', 1)
-
-    const outTimer = d3.timer((elapsed) => {
-      const t = d3.easeCubicInOut(elapsed / duration) 
-      drawFrame(2 - t)
-
-      if (t > 1) {
-        // canvas was covering up mapbox click events before
-        // we're not going to take it off of the DOM though because we'll still use it for the world map
-        canvas.style('display', 'none')
-        renderProperties(map)
-        outTimer.stop()
-      }
     })
   }
 }

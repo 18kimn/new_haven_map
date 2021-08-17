@@ -1,9 +1,23 @@
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
-import renderRedlining from './renderRedlining.js'
-import displayText from '../utils/displayText.js'
 
 const renderProperties = (map) => {
+  console.log(map.getPaintProperty('propBlackLayer', 'fill-opacity'))
+  d3.select('canvas.container').style('display', 'none') // double-check for pointer clicks
+  d3.select('.mapboxgl-canvas')
+    .transition()
+    .duration(1500)
+    .style('opacity', 1)
+  map.setPaintProperty('og-geometries', 
+    'fill-opacity',
+    1)
+
+  map.easeTo({
+    duration: 250,
+    zoom: 13,
+    center: [-72.931, 41.31099],
+  })
+
   map.on('click', 'og-geometries', propertyClick)
     .on('click', 'propertyBlockLayer', propertyBlockClick)
     .on('zoom', function() {
@@ -39,8 +53,6 @@ const renderProperties = (map) => {
     legend.appendChild(item)
   }
 
-  displayText(1, renderRedlining)
-  
   function propertyClick(e) {
     new mapboxgl.Popup()
       .setLngLat(e.lngLat)

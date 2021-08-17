@@ -8,7 +8,7 @@ but for overall increased readability.
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
 import './index.css'
-import renderIntro from './modules/renderIntro.js'
+import transitionMap from './utils/transition.js'
 
 mapboxgl.accessToken = process.env.MAPBOX_ACCESS_TOKEN
 
@@ -42,13 +42,15 @@ map.on('load', () => {
     'paint': {
       'raster-opacity': 0,
     },
-  }, 'settlement-subdivision-label')
+  })
+  console.log(map.getSource('gridVideoSource'))
 
   map.on('sourcedata', (e) => {
     if (e.sourceId === 'gridVideoSource' && e.isSourceLoaded === true) {
       map.getSource('gridVideoSource').getVideo().loop = false
     }
   })
+
   // moves mapbox attribution to the bottom left
   const attr = d3.selectAll('.mapboxgl-ctrl-attrib,.mapboxgl-ctrl-logo').nodes()
   const attrDiv = d3.selectAll('.attribution').node()
@@ -58,4 +60,4 @@ map.on('load', () => {
     .transition().duration(1500).style('opacity', 1)
 })
 
-renderIntro(map)
+transitionMap(map, -1, 0)

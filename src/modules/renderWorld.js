@@ -1,3 +1,4 @@
+/* eslint-disable no-invalid-this */
 import * as d3 from 'd3'
 import mapboxgl from 'mapbox-gl'
 // to be used when transitioning to the last map
