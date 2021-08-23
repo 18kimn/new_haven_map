@@ -24,19 +24,43 @@ html, body {
 /* ------------ */ 
 /* sidebar */
 
-.story {
+#overlay {
   position: absolute;
   top: 0;
   left: 2%;
+  height: 100%;
+  display: flex;
+  flex-direction: row-reverse;
+}
+
+#menu {
+  display: inline-block;
+  overflow-y: auto;
+  height: 100%;
+  background-color: white;
+  box-shadow: 0px -4px 0px 0px rgb(0 0 0 / 20%);
+  border-radius: 5px 5px 0 0;
+}
+ 
+.menuItem {
+  writing-mode: vertical-rl;
+  border: solid rgb(0 0 0 / 15%);
+  border-width: 1px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.story {
   padding-left: 20px;
   padding-right: 20px;
-  width: 50ch; /* 360px is the length of the mapbox logo attribution plus the mapbox text attribution */
   height: 100%;
+  width: 50ch;
+  max-width: 70vw; 
   display: grid;
-  grid-template-rows: [header] 10% [content] 87% [attribution] 3%;
+  grid-template-rows: [header] 70px [content] auto [attribution] 20px;
   justify-content: left;
-  background: rgb(255 255 255 / 95%);
-  box-shadow: 0px 5px 5px 0px rgb(0 0 0 / 20%),  0px 5px 5px 0px rgb(0 0 0 / 20%);
+  background: rgb(255 255 255);
+  box-shadow: 0px 5px 5px 0px rgb(0 0 0 / 20%), 0px 5px 5px 0px rgb(0 0 0 / 20%);
 }
 
 .story-header{
@@ -45,6 +69,7 @@ html, body {
   grid-template-columns: [header] 80% [backButton] 10% [nextButton] 10%;
   grid-auto-flow: column;
   align-items: center;
+  margin-bottom: 20px;
 }
 
 .nextButton {
@@ -71,7 +96,8 @@ html, body {
 .story-body {
   overflow-y: auto;
 }
-.story-body::-webkit-scrollbar {
+.story-body::-webkit-scrollbar,
+#menu::-webkit-scrollbar {
   display: none;
 }
 
@@ -87,12 +113,12 @@ html, body {
 }
 
 /* ----------------------------- */ 
-/* map actions styling */ 
+/* the actual map */ 
 
-
-.nation:hover{
-  stroke: #fff;
-  stroke-width: 1px;
+.nation {
+  stroke-width: 1;
+  stroke-opacity: 1;
+  fill-opacity: 0.2;
 }
 
 .mapboxgl-canvas {
@@ -126,7 +152,7 @@ html, body {
   padding: 10px;
   line-height: 18px;
   background:rgb(255 255 255 / 95%);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 5px 5px rgba(0, 0, 0, 0.1);
 }
 
 .legend-key {

@@ -420,7 +420,7 @@ native_land <- fromJSON("https://native-land.ca/api/index.php?maps=territories")
   mutate(coords = geometry$coordinates %>%
            map(function(x) {
              ncols <- last(dim(x))
-#We want st_polygon() recognize each row as containing a single polygon
+#We want st_polygon() to recognize each row as containing a single polygon
 #That means we need each row to be a single-item list,
 #    where the item is a matrix with coordinates in x-y-z order
 #Currently each item in the column is an array, so we need to convert it
@@ -456,17 +456,16 @@ d3_pal <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
 native_land <- native_land %>%
   st_crop(y = ct) %>%
   mutate(fill = rep(d3_pal, ceiling(nrow(.) / length(d3_pal)))[seq_len(.)])
-nation_labels <- native_land %>%
+native_land <- native_land %>%
   mutate(lab_locations = map_dfr(polylabelr::poi(coords), as_tibble),
          text_x = lab_locations[["x"]],
          text_y = lab_locations[["y"]])  %>%
   select(-lab_locations)
 
-st_write(nation_labels,
-         here("src/assets/data/native_land.geojson"),
+st_write(native_land,
+         here("src/assets/data/native_land.json"),
          delete_dsn = T, delete_layer = T
          )
-
 
 ```
 

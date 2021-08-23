@@ -4,9 +4,24 @@ const renderRedlining = (map) => {
   d3.select('#propPopup').remove()
   d3.select('#blockPopup').remove()
   d3.select('.legend').remove()
-  map.setPaintProperty('propBlackLayer', 
+
+  d3.select('.mapboxgl-canvas')
+    .transition()
+    .duration(1000)
+    .style('opacity', 1)
+
+  map.setPaintProperty('propBlackLayer',
     'fill-opacity',
-    1)
+    1).easeTo({
+    duration: 250,
+    zoom: 13,
+    center: [-72.931, 41.31099],
+  })
+
+  const features = map.querySourceFeatures('holcSource', {
+    sourceLayer: 'holc-7f9p3ps',
+  })
+  console.log(features)
   const legend = d3.select('body').append('div')
     .attr('class', 'legend')
     .html('<b>Percent Black</b>')
@@ -32,9 +47,15 @@ const renderRedlining = (map) => {
   }
 
   map.on('mousemove', (e) => {
-    map.setFilter('holcLayer', 
-      ['<=', ['get', 'x'], 
-        e.lngLat.lng])
+    const ids = 1
+    // map.setFeatureState({
+    //   source: 'holc-7f9p3p',
+    //   id: featureID,
+
+    // })
+    // map.setFilter('holc',
+    //   ['<=', ['get', 'x'],
+    //     e.lngLat.lng])
   })
     .setMinZoom(11.5)
 }

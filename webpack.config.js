@@ -4,7 +4,7 @@ import ESLintPlugin from 'eslint-webpack-plugin'
 import CopyPlugin from 'copy-webpack-plugin'
 import {dirname} from 'path'
 import {fileURLToPath} from 'url'
-import { createRequire } from 'module'
+import {createRequire} from 'module'
 
 const require = createRequire(import.meta.url)
 
@@ -40,7 +40,7 @@ export default {
         exclude: /node_modules/,
         options: {
           presets: [
-            ['@babel/preset-env', { targets: 'defaults'}],
+            ['@babel/preset-env', {targets: 'defaults'}],
           ],
         },
       },

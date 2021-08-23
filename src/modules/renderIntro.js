@@ -5,6 +5,7 @@ import * as topojson from 'topojson-client'
 import dta from '../assets/data/intro_nhv.json'
 
 const renderIntro = (map) => {
+  console.log('map rendering')
   d3.select('.mapboxgl-canvas')
     .transition()
     .duration(1500)
@@ -58,13 +59,14 @@ const renderIntro = (map) => {
     .attr('class', 'nhv-blocks')
     .style('fill', 'none')
     .style('stroke', '#002b36')
-    .style('stroke-opacity', 0.2)
-    .style('stroke-width', 3)
+    .style('stroke-opacity', 0.3)
+    .style('stroke-width', 2)
     .style('stroke-dasharray', '200 10')
 
-  map.on('move', () => {
-    arcs.attr('d', pathSVG)
-  })
+  const onMoveHandler = () => arcs.attr('d', pathSVG)
+  const onZoomHandler = () => arcs.attr('stroke-width', 2 / (map.getZoom() / 13))
+  map.on('move', onMoveHandler)
+    .on('zoom', onZoomHandler)
 
   // animating
   const cycleLength = 6000
@@ -74,18 +76,12 @@ const renderIntro = (map) => {
     snakes.forEach((snake, i, array) => {
       updateSnake(snake, i, array, elapsed / cycleLength)
     })
-    if (d3.select('canvas.container').style('display') === 'none') {
-      snakeTimer.stop()
-    }
   }, 50)
 
   // to maintain performance and work with the mapbox drag actions
   //  animations should just be fast as browser allows
   const timer = d3.timer((elapsed) => {
     drawFrame(elapsed / cycleLength)
-    if (d3.select('canvas.container').style('display') === 'none') {
-      timer.stop()
-    }
   })
 
 
@@ -103,12 +99,12 @@ const renderIntro = (map) => {
     const shouldMakeNewSnake = isBeginning || shouldRestart
 
     let snakeShapes; let snakeIDs
-    if (shouldMakeNewSnake) { 
+    if (shouldMakeNewSnake) {
       // generate a random color. idk where that number came from lmao
       snakeColors[i] = '#' + Math.floor(Math.random() * 16777215).toString(16)
-      // pick a random block and put its ID into this array of IDs of the blocks in the snake 
+      // pick a random block and put its ID into this array of IDs of the blocks in the snake
       //  so that we can make sure not to add a block that's already in the snake later on
-      snakeIDs = [Math.floor(Math.random() * 1494)] 
+      snakeIDs = [Math.floor(Math.random() * 1494)]
       snakeShapes = [features[snakeIDs]] // the corresponding geometry as a one-element array
     } else {
       snakeShapes = snake[0]
@@ -120,14 +116,14 @@ const renderIntro = (map) => {
       })[0] || neighbors[0] // get the first item in that neighbors array that doesn't overlap with what's already in the snake
       if (neighbor) {
         snakeIDs.push(neighbor - 1) // add the corresponding geometry to the snake
-        snakeShapes.push(features[neighbor - 1]) 
+        snakeShapes.push(features[neighbor - 1])
       } else {
         snakeIDs = undefined
         snakeShapes = undefined
         return undefined
       }
     }
-    
+
     // make sure there's only 15 elements in the snake at a time
     // if needed, just remove the first one to keep the snake moving
     if (snakeShapes.length > 15) {
@@ -178,6 +174,19 @@ const renderIntro = (map) => {
       })
     })
   }
+
+  // section 3: cleanup functions to erase timers
+  function cleanup() {
+    timer.stop()
+    snakeTimer.stop()
+    map.off('move', onMoveHandler)
+      .off('zoom', onZoomHandler)
+    canvas.transition()
+      .duration(1500)
+      .style('opacity', 0)
+      .on('end', () => canvas.style('display', 'none'))
+  }
+  return cleanup
 }
 
 export default renderIntro
